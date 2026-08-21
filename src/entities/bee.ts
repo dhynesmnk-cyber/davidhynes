@@ -9,6 +9,7 @@ export class Bee extends Phaser.GameObjects.Container {
   private walkFrame: number = 0;
   private wingFrame: number = 0;
   private jitterSeed: number = Math.random() * 1000;
+  private baseRotation: number = 0;
 
   // Animation timing for stop-motion feel (8-12fps)
   private readonly WALK_FPS = 10;
@@ -17,21 +18,17 @@ export class Bee extends Phaser.GameObjects.Container {
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
-    this.setDepth(100);
-
+    
     // Create bee body (will be replaced with actual sprite later)
     this.bodySprite = scene.add.sprite(0, 0, 'bee-placeholder');
     this.bodySprite.setOrigin(0.5, 0.5);
-    this.bodySprite.setScale(2);
     this.add(this.bodySprite);
 
     // Create wings (separate sprites for animation)
-    this.wingLeft = scene.add.sprite(-8, -4, 'bee-wing-placeholder');
-    this.wingRight = scene.add.sprite(8, -4, 'bee-wing-placeholder');
+    this.wingLeft = scene.add.sprite(-8, -6, 'bee-wing-placeholder');
+    this.wingRight = scene.add.sprite(8, -6, 'bee-wing-placeholder');
     this.wingLeft.setOrigin(0.5, 0.5);
     this.wingRight.setOrigin(0.5, 0.5);
-    this.wingLeft.setScale(1.5);
-    this.wingRight.setScale(1.5);
     this.wingLeft.setFlipX(true);
     this.add(this.wingLeft);
     this.add(this.wingRight);
@@ -55,6 +52,7 @@ export class Bee extends Phaser.GameObjects.Container {
 
     if (this.frameAccumulator >= frameDuration) {
       this.frameAccumulator = 0;
+      this.baseRotation = 0;
 
       if (this.isFlying) {
         // Wing flutter animation
@@ -64,11 +62,9 @@ export class Bee extends Phaser.GameObjects.Container {
         this.wingRight.setRotation(Phaser.Math.DegToRad(-wingAngle));
 
         // Body tilt into movement direction
-        if (moving) {
+        if (moving && direction.length() > 0) {
           const tilt = direction.x * 15;
-          this.setRotation(Phaser.Math.DegToRad(tilt));
-        } else {
-          this.setRotation(0);
+          this.baseRotation = Phaser.Math.DegToRad(tilt);
         }
       } else {
         // Walk cycle with butt wiggle
@@ -76,21 +72,13 @@ export class Bee extends Phaser.GameObjects.Container {
 
         if (moving) {
           // Butt wiggle: abdomen sways side to side on 2-beat cycle
-          // The wiggle is strongest when feet are on the ground (frames 0 and 2)
           const wigglePhase = this.walkFrame * 90; // 0, 90, 180, 270
           const wiggleAmount = Math.sin(Phaser.Math.DegToRad(wigglePhase)) * 8;
-
-          // Rotate body for butt wiggle effect
-          this.setRotation(Phaser.Math.DegToRad(wiggleAmount));
-
-          // Subtle squash and stretch on steps
-          const squash = this.walkFrame % 2 === 0 ? 1.05 : 0.95;
-          this.bodySprite.setScale(2 * squash, 2 * (2 - squash));
+          this.baseRotation = Phaser.Math.DegToRad(wiggleAmount);
         } else {
           // Idle - slow bob with antenna twitch
           const bob = Math.sin(this.scene.time.now * 0.003) * 3;
-          this.setRotation(Phaser.Math.DegToRad(bob));
-          this.bodySprite.setScale(2, 2);
+          this.baseRotation = Phaser.Math.DegToRad(bob);
         }
 
         // Wings relaxed when walking
@@ -100,7 +88,7 @@ export class Bee extends Phaser.GameObjects.Container {
 
       // Add per-frame rotation jitter for stop-motion feel
       const jitter = (Math.sin((this.scene.time.now + this.jitterSeed) * 0.01) * this.JITTER_AMOUNT);
-      this.rotation += Phaser.Math.DegToRad(jitter);
+      this.setRotation(this.baseRotation + Phaser.Math.DegToRad(jitter));
     }
   }
 
