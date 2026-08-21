@@ -24,11 +24,17 @@ export class PreloadScene extends Phaser.Scene {
     graphics.generateTexture('bee-placeholder', 32, 32);
     graphics.destroy();
     
-    // Create placeholder wing texture
+    // Create placeholder wing texture - larger and more visible
     const wingGraphics = this.make.graphics({ x: 0, y: 0 });
-    wingGraphics.fillStyle(0xF3E9D6, 0.9);
-    wingGraphics.fillEllipse(8, 4, 10, 6);
-    wingGraphics.generateTexture('bee-wing-placeholder', 16, 8);
+    wingGraphics.fillStyle(0xF3E9D6, 1);
+    wingGraphics.fillEllipse(12, 6, 16, 10);
+    // Wing veins
+    wingGraphics.lineStyle(1, 0x6E4A2E, 0.5);
+    wingGraphics.beginPath();
+    wingGraphics.moveTo(4, 3);
+    wingGraphics.lineTo(12, 6);
+    wingGraphics.strokePath();
+    wingGraphics.generateTexture('bee-wing-placeholder', 20, 12);
     wingGraphics.destroy();
     
     // Create placeholder flower texture

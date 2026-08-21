@@ -25,8 +25,8 @@ export class Bee extends Phaser.GameObjects.Container {
     this.add(this.bodySprite);
 
     // Create wings (separate sprites for animation)
-    this.wingLeft = scene.add.sprite(-8, -6, 'bee-wing-placeholder');
-    this.wingRight = scene.add.sprite(8, -6, 'bee-wing-placeholder');
+    this.wingLeft = scene.add.sprite(-14, -4, 'bee-wing-placeholder');
+    this.wingRight = scene.add.sprite(14, -4, 'bee-wing-placeholder');
     this.wingLeft.setOrigin(0.5, 0.5);
     this.wingRight.setOrigin(0.5, 0.5);
     this.wingLeft.setFlipX(true);
