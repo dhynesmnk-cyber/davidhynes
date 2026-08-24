@@ -1,15 +1,20 @@
 import Phaser from 'phaser';
 import { Bee } from '../entities/bee';
 import { InputHandler } from '../systems/input';
+import { ZoneManager } from '../systems/zones';
+import { ModalManager } from '../ui/modal';
 
 export class WorldScene extends Phaser.Scene {
   private bee!: Bee;
   private inputHandler!: InputHandler;
+  private zoneManager!: ZoneManager;
+  private modalManager!: ModalManager;
   private worldBounds!: Phaser.Geom.Rectangle;
   private isFlying: boolean = false;
   private moveSpeed: number = 200;
   private flySpeed: number = 300;
   private modeText!: Phaser.GameObjects.Text;
+  private interactHint!: Phaser.GameObjects.Text;
   
   constructor() {
     super({ key: 'WorldScene' });
@@ -43,7 +48,47 @@ export class WorldScene extends Phaser.Scene {
     this.modeText.setDepth(10000);
     this.modeText.setVisible(false);
 
-    console.log('🌸 GATE 2 — World & Art Direction ready');
+    // Interact hint text
+    this.interactHint = this.add.text(0, 0, 'Press E to interact', {
+      font: 'bold 14px system-ui',
+      color: '#5FE3DD',
+      backgroundColor: '#241A38EE',
+      padding: { x: 10, y: 5 },
+    });
+    this.interactHint.setScrollFactor(0);
+    this.interactHint.setDepth(10000);
+    this.interactHint.setVisible(false);
+
+    // Initialize zone manager
+    this.zoneManager = new ZoneManager(this);
+    this.zoneManager.create();
+    
+    // Initialize modal manager
+    this.modalManager = new ModalManager();
+    
+    // Set up callbacks
+    this.zoneManager.setProximityCallback((_zoneId) => {
+      this.interactHint.setPosition(16, 50);
+      this.interactHint.setVisible(true);
+    });
+    
+    this.zoneManager.setInteractCallback(() => {
+      const currentZone = this.zoneManager.getCurrentZone();
+      if (currentZone) {
+        this.modalManager.open(currentZone.id);
+      }
+    });
+    
+    this.modalManager.setOnOpen((zoneId) => {
+      this.zoneManager.markZoneAsVisited(zoneId);
+      this.interactHint.setVisible(false);
+    });
+    
+    this.modalManager.setOnClose(() => {
+      // Focus returns automatically via modal manager
+    });
+
+    console.log('🌸 GATE 3 — Interaction & Modals ready');
   }
   
   private createDioramaWorld(): void {
@@ -388,5 +433,13 @@ export class WorldScene extends Phaser.Scene {
     this.bee.y = Phaser.Math.Clamp(this.bee.y, this.worldBounds.top + 20, this.worldBounds.bottom - 20);
 
     this.bee.update(delta, isMoving, moveVector);
+    
+    // Update zone manager with bee position
+    this.zoneManager.update(this.bee.x, this.bee.y);
+    
+    // Handle interact input
+    if (this.inputHandler.getInteract()) {
+      this.zoneManager.triggerInteract();
+    }
   }
 }

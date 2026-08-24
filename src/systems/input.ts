@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 export class InputHandler {
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
   private spaceKey: Phaser.Input.Keyboard.Key | null = null;
+  private eKey: Phaser.Input.Keyboard.Key | null = null;
   private wKey: Phaser.Input.Keyboard.Key | null = null;
   private sKey: Phaser.Input.Keyboard.Key | null = null;
   private aKey: Phaser.Input.Keyboard.Key | null = null;
@@ -10,6 +11,7 @@ export class InputHandler {
   
   private walkFlyToggled: boolean = false;
   private lastToggleState: boolean = false;
+  private interactPressed: boolean = false;
   
   private moveVector: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
   
@@ -30,6 +32,9 @@ export class InputHandler {
     
     // Space for walk/fly toggle
     this.spaceKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    
+    // E for interact
+    this.eKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
   }
   
   public update(): void {
@@ -60,6 +65,11 @@ export class InputHandler {
       this.walkFlyToggled = true;
     }
     this.lastToggleState = this.spaceKey?.isDown ?? false;
+    
+    // Handle interact on E press
+    if (this.eKey?.isDown && !this.interactPressed) {
+      this.interactPressed = true;
+    }
   }
   
   public getMoveVector(): Phaser.Math.Vector2 {
@@ -74,5 +84,11 @@ export class InputHandler {
     const toggled = this.walkFlyToggled;
     this.walkFlyToggled = false; // Reset after reading
     return toggled;
+  }
+  
+  public getInteract(): boolean {
+    const pressed = this.interactPressed;
+    this.interactPressed = false; // Reset after reading
+    return pressed;
   }
 }
