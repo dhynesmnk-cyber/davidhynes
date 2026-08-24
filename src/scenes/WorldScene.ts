@@ -4,10 +4,12 @@ import { InputHandler } from '../systems/input';
 import { ZoneManager } from '../systems/zones';
 import { ModalManager } from '../ui/modal';
 import { ProgressManager } from '../systems/progress';
+import { MobileInput } from '../systems/mobile-input';
 
 export class WorldScene extends Phaser.Scene {
   private bee!: Bee;
   private inputHandler!: InputHandler;
+  private mobileInput!: MobileInput;
   private zoneManager!: ZoneManager;
   private modalManager!: ModalManager;
   private progressManager!: ProgressManager;
@@ -30,6 +32,18 @@ export class WorldScene extends Phaser.Scene {
     
     this.inputHandler = new InputHandler(this);
     this.inputHandler.create();
+    
+    // Initialize mobile input (joystick, touch controls)
+    this.mobileInput = new MobileInput(this);
+    this.mobileInput.setOnMoveChange((_vector: Phaser.Math.Vector2) => {
+      // Vector from joystick will be applied in update()
+    });
+    this.mobileInput.setOnInteractPress(() => {
+      this.zoneManager.triggerInteract();
+    });
+    this.mobileInput.setOnTogglePress(() => {
+      this.toggleFlightMode();
+    });
 
     const spawnX = this.worldBounds.centerX;
     const spawnY = this.worldBounds.bottom - 150;
@@ -76,6 +90,18 @@ export class WorldScene extends Phaser.Scene {
     this.zoneManager.setProximityCallback((_zoneId) => {
       this.interactHint.setPosition(16, 50);
       this.interactHint.setVisible(true);
+      // Show mobile interact button when near a zone
+      if (this.mobileInput) {
+        this.mobileInput.showInteractButton(true);
+      }
+    });
+    
+    this.zoneManager.setProximityExitCallback(() => {
+      this.interactHint.setVisible(false);
+      // Hide mobile interact button when leaving zone proximity
+      if (this.mobileInput) {
+        this.mobileInput.showInteractButton(false);
+      }
     });
     
     this.zoneManager.setInteractCallback(() => {
@@ -98,6 +124,23 @@ export class WorldScene extends Phaser.Scene {
     });
 
     console.log('🌸 GATE 4 — Progress & Bloom system ready');
+    console.log('📱 GATE 5 — Mobile controls initialized');
+  }
+  
+  private toggleFlightMode(): void {
+    this.isFlying = !this.isFlying;
+    this.bee.setFlying(this.isFlying);
+    this.modeText.setText(this.isFlying ? 'FLY' : 'WALK');
+    
+    this.modeText.setVisible(true);
+    this.time.delayedCall(1500, () => {
+      this.tweens.add({
+        targets: this.modeText,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => this.modeText.setVisible(false),
+      });
+    });
   }
   
   private createDioramaWorld(): void {
@@ -407,24 +450,24 @@ export class WorldScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.inputHandler.update();
 
+    // Handle desktop walk/fly toggle (Space bar)
     if (this.inputHandler.getWalkFlyToggle()) {
-      this.isFlying = !this.isFlying;
-      this.bee.setFlying(this.isFlying);
-      this.modeText.setText(this.isFlying ? 'FLY' : 'WALK');
-      
-      this.modeText.setVisible(true);
-      this.time.delayedCall(1500, () => {
-        this.tweens.add({
-          targets: this.modeText,
-          alpha: 0,
-          duration: 500,
-          onComplete: () => this.modeText.setVisible(false),
-        });
-      });
+      this.toggleFlightMode();
     }
 
-    const moveVector = this.inputHandler.getMoveVector();
-    const isMoving = this.inputHandler.isMoving();
+    // Get movement vector from keyboard or joystick
+    let moveVector = this.inputHandler.getMoveVector();
+    let isMoving = this.inputHandler.isMoving();
+    
+    // If on mobile and joystick is active, use joystick vector instead
+    if (this.mobileInput && this.sys.game.device.input.touch) {
+      const joystickVector = this.mobileInput.getMoveVector();
+      if (joystickVector.length() > 0) {
+        moveVector = joystickVector;
+        isMoving = true;
+      }
+    }
+    
     const speed = this.isFlying ? this.flySpeed : this.moveSpeed;
 
     if (isMoving) {

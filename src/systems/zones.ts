@@ -16,6 +16,7 @@ export class ZoneManager {
   private zones: ZoneData[] = [];
   private currentZone: ZoneData | null = null;
   private proximityCallback: ((zoneId: string) => void) | null = null;
+  private proximityExitCallback: (() => void) | null = null;
   private interactCallback: (() => void) | null = null;
 
   constructor(scene: Phaser.Scene) {
@@ -119,6 +120,12 @@ export class ZoneManager {
         }
       }
     } else {
+      if (this.currentZone !== null) {
+        // Just left a zone - trigger exit callback
+        if (this.proximityExitCallback) {
+          this.proximityExitCallback();
+        }
+      }
       this.currentZone = null;
     }
   }
@@ -148,6 +155,10 @@ export class ZoneManager {
 
   setProximityCallback(callback: (zoneId: string) => void): void {
     this.proximityCallback = callback;
+  }
+
+  setProximityExitCallback(callback: () => void): void {
+    this.proximityExitCallback = callback;
   }
 
   setInteractCallback(callback: () => void): void {
