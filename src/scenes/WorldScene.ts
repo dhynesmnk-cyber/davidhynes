@@ -38,7 +38,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Camera follows bee smoothly
     this.cameras.main.startFollow(this.bee, true, 0.1, 0.1);
-    this.cameras.main.setZoom(1.5);
+    this.cameras.main.setZoom(1);
 
     // Debug info
     const debugText = this.add.text(10, 10, 'GATE 1 — Movement Feel\nArrows/WASD: Move | Space: Walk/Fly', {
