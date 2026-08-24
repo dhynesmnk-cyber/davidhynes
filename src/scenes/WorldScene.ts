@@ -3,12 +3,14 @@ import { Bee } from '../entities/bee';
 import { InputHandler } from '../systems/input';
 import { ZoneManager } from '../systems/zones';
 import { ModalManager } from '../ui/modal';
+import { ProgressManager } from '../systems/progress';
 
 export class WorldScene extends Phaser.Scene {
   private bee!: Bee;
   private inputHandler!: InputHandler;
   private zoneManager!: ZoneManager;
   private modalManager!: ModalManager;
+  private progressManager!: ProgressManager;
   private worldBounds!: Phaser.Geom.Rectangle;
   private isFlying: boolean = false;
   private moveSpeed: number = 200;
@@ -63,6 +65,10 @@ export class WorldScene extends Phaser.Scene {
     this.zoneManager = new ZoneManager(this);
     this.zoneManager.create();
     
+    // Initialize progress manager (handles blooms and persistence)
+    this.progressManager = new ProgressManager(this);
+    this.progressManager.renderExistingBlooms();
+    
     // Initialize modal manager
     this.modalManager = new ModalManager();
     
@@ -80,7 +86,10 @@ export class WorldScene extends Phaser.Scene {
     });
     
     this.modalManager.setOnOpen((zoneId) => {
-      this.zoneManager.markZoneAsVisited(zoneId);
+      const isNewVisit = this.progressManager.markZoneVisited(zoneId);
+      if (isNewVisit) {
+        this.zoneManager.markZoneAsVisited(zoneId);
+      }
       this.interactHint.setVisible(false);
     });
     
@@ -88,7 +97,7 @@ export class WorldScene extends Phaser.Scene {
       // Focus returns automatically via modal manager
     });
 
-    console.log('🌸 GATE 3 — Interaction & Modals ready');
+    console.log('🌸 GATE 4 — Progress & Bloom system ready');
   }
   
   private createDioramaWorld(): void {
