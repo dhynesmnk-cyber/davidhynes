@@ -1,94 +1,121 @@
 import Phaser from 'phaser';
 
+/**
+ * Desktop keyboard input. Arrow keys / WASD move, Space toggles walk/fly,
+ * E or Enter interacts. `setEnabled(false)` releases key capture while a DOM
+ * modal is open so Tab/Space/Enter behave normally inside it.
+ */
 export class InputHandler {
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
-  private spaceKey: Phaser.Input.Keyboard.Key | null = null;
-  private eKey: Phaser.Input.Keyboard.Key | null = null;
-  private wKey: Phaser.Input.Keyboard.Key | null = null;
-  private sKey: Phaser.Input.Keyboard.Key | null = null;
-  private aKey: Phaser.Input.Keyboard.Key | null = null;
-  private dKey: Phaser.Input.Keyboard.Key | null = null;
-  
-  private walkFlyToggled: boolean = false;
-  private lastToggleState: boolean = false;
-  private interactPressed: boolean = false;
-  
-  private moveVector: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
-  
+  private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
+  private walkFlyToggled = false;
+  private lastSpace = false;
+  private interactPressed = false;
+  private lastInteract = false;
+  private enabled = true;
+  private moveVector = new Phaser.Math.Vector2();
+
   constructor(private scene: Phaser.Scene) {}
-  
+
   public create(): void {
     const keyboard = this.scene.input.keyboard;
     if (!keyboard) return;
-    
-    // Cursor keys for movement
     this.cursors = keyboard.createCursorKeys();
-    
-    // WASD alternative
-    this.wKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
-    this.sKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-    this.aKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-    this.dKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
-    
-    // Space for walk/fly toggle
-    this.spaceKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    
-    // E for interact
-    this.eKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    const K = Phaser.Input.Keyboard.KeyCodes;
+    (['W', 'A', 'S', 'D'] as const).forEach((name) => {
+      this.keys[name] = keyboard.addKey(K[name]);
+    });
+    // Interact keys are NOT captured so Enter still activates focused DOM
+    // controls (mute toggle, links) normally.
+    this.keys.E = keyboard.addKey(K.E, false);
+    this.keys.ENTER = keyboard.addKey(K.ENTER, false);
+
+    // When a DOM control (mute button, skip link) has focus, hand the
+    // keyboard back to the browser so Space/Enter/arrows behave natively.
+    document.addEventListener('focusin', () => this.syncCapture());
+    document.addEventListener('focusout', () => this.syncCapture());
   }
-  
-  public update(): void {
-    // Reset movement vector
+
+  /** True when keyboard focus is on a DOM control rather than the game. */
+  private domHasFocus(): boolean {
+    const el = document.activeElement;
+    if (!el || el === document.body) return false;
+    return el.tagName !== 'CANVAS' && el.id !== 'game-container';
+  }
+
+  private syncCapture(): void {
+    const keyboard = this.scene.input.keyboard;
+    if (!keyboard || !this.enabled) return;
+    if (this.domHasFocus()) {
+      keyboard.disableGlobalCapture();
+      keyboard.resetKeys();
+    } else {
+      keyboard.enableGlobalCapture();
+    }
+  }
+
+  public setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    const keyboard = this.scene.input.keyboard;
+    if (!keyboard) return;
+    keyboard.enabled = enabled;
+    if (enabled) {
+      keyboard.enableGlobalCapture();
+    } else {
+      keyboard.disableGlobalCapture();
+      keyboard.resetKeys();
+    }
     this.moveVector.set(0, 0);
-    
-    // Check cursor keys
-    if (this.cursors) {
-      if (this.cursors.left?.isDown) this.moveVector.x -= 1;
-      if (this.cursors.right?.isDown) this.moveVector.x += 1;
-      if (this.cursors.up?.isDown) this.moveVector.y -= 1;
-      if (this.cursors.down?.isDown) this.moveVector.y += 1;
-    }
-    
-    // Check WASD keys
-    if (this.aKey?.isDown) this.moveVector.x -= 1;
-    if (this.dKey?.isDown) this.moveVector.x += 1;
-    if (this.wKey?.isDown) this.moveVector.y -= 1;
-    if (this.sKey?.isDown) this.moveVector.y += 1;
-    
-    // Normalize diagonal movement
-    if (this.moveVector.length() > 1) {
-      this.moveVector.normalize();
-    }
-    
-    // Handle walk/fly toggle on space press (edge-triggered, not level-triggered)
-    if (this.spaceKey?.isDown && !this.lastToggleState) {
-      this.walkFlyToggled = true;
-    }
-    this.lastToggleState = this.spaceKey?.isDown ?? false;
-    
-    // Handle interact on E press
-    if (this.eKey?.isDown && !this.interactPressed) {
-      this.interactPressed = true;
-    }
+    this.walkFlyToggled = false;
+    this.interactPressed = false;
+    this.lastSpace = true; // swallow the key that opened/closed the modal
+    this.lastInteract = true;
   }
-  
+
+  public update(): void {
+    this.moveVector.set(0, 0);
+    if (!this.enabled || this.domHasFocus()) return;
+
+    const c = this.cursors;
+    if (c) {
+      if (c.left.isDown) this.moveVector.x -= 1;
+      if (c.right.isDown) this.moveVector.x += 1;
+      if (c.up.isDown) this.moveVector.y -= 1;
+      if (c.down.isDown) this.moveVector.y += 1;
+    }
+    if (this.keys.A?.isDown) this.moveVector.x -= 1;
+    if (this.keys.D?.isDown) this.moveVector.x += 1;
+    if (this.keys.W?.isDown) this.moveVector.y -= 1;
+    if (this.keys.S?.isDown) this.moveVector.y += 1;
+    if (this.moveVector.length() > 1) this.moveVector.normalize();
+
+    // Edge-triggered toggles
+    const spaceDown = c?.space.isDown ?? false;
+    if (spaceDown && !this.lastSpace) this.walkFlyToggled = true;
+    this.lastSpace = spaceDown;
+
+    const interactDown = (this.keys.E?.isDown ?? false) || (this.keys.ENTER?.isDown ?? false);
+    if (interactDown && !this.lastInteract) this.interactPressed = true;
+    this.lastInteract = interactDown;
+  }
+
   public getMoveVector(): Phaser.Math.Vector2 {
     return this.moveVector;
   }
-  
+
   public isMoving(): boolean {
     return this.moveVector.length() > 0;
   }
-  
+
   public getWalkFlyToggle(): boolean {
-    const toggled = this.walkFlyToggled;
-    this.walkFlyToggled = false; // Reset after reading
-    return toggled;
+    const t = this.walkFlyToggled;
+    this.walkFlyToggled = false;
+    return t;
   }
-  
+
   public getInteract(): boolean {
-    const pressed = this.interactPressed;
-    this.interactPressed = false; // Reset after reading
-    return pressed;
+    const p = this.interactPressed;
+    this.interactPressed = false;
+    return p;
   }
 }

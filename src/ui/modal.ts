@@ -1,265 +1,205 @@
-import { zones, ZoneContent } from '../content/zones';
+import { zones, ZoneContent, contactInfo } from '../content/zones';
+import { audio } from '../systems/audio';
+
+/**
+ * DOM modal layered above the canvas (FR-3).
+ *  - Paper card, torn edge, glow-violet header accent (styles in index.html).
+ *  - Layered copy: handwritten intro line → professional detail.
+ *  - Focus trapped, Esc closes, focus returns to the trigger.
+ *  - Contact block in every footer (FR-7) + "skip the garden" link.
+ *  - Also renders the hive signpost contact card and the 5/5 completion card.
+ */
+
+type ModalKind = 'zone' | 'contact' | 'completion';
+
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Minimal markdown: **bold** and [label](url). Content is authored, not user input. */
+function inline(s: string): string {
+  return escapeHtml(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+
+export function contactHtml(): string {
+  return `
+    <address class="contact-block">
+      <strong>David Hynes</strong> — Melbourne, VIC<br>
+      <a href="tel:+61411039718">0411 039 718</a> ·
+      <a href="mailto:d.hynes.mnk@gmail.com">d.hynes.mnk@gmail.com</a> ·
+      <a href="https://instagram.com/dave.likeswine" target="_blank" rel="noopener noreferrer">@dave.likeswine</a>
+    </address>`;
+}
 
 export class ModalManager {
-  private modalElement: HTMLElement | null = null;
-  private overlayElement: HTMLElement | null = null;
-  private contentElement: HTMLElement | null = null;
+  private overlay: HTMLElement;
+  private modal: HTMLElement;
+  private content: HTMLElement;
   private previousFocus: HTMLElement | null = null;
+  private open_ = false;
   private onOpenCallback: ((zoneId: string) => void) | null = null;
   private onCloseCallback: (() => void) | null = null;
+  private onStateChange: ((open: boolean) => void) | null = null;
 
   constructor() {
-    this.createModalDOM();
-  }
+    this.overlay = document.createElement('div');
+    this.overlay.id = 'modal-overlay';
+    this.overlay.hidden = true;
 
-  private createModalDOM(): void {
-    // Create overlay
-    const overlay = document.createElement('div');
-    overlay.id = 'modal-overlay';
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(36, 26, 56, 0.7);
-      backdrop-filter: blur(4px);
-      z-index: 9999;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      pointer-events: none;
-    `;
-    document.body.appendChild(overlay);
-    this.overlayElement = overlay;
+    this.modal = document.createElement('div');
+    this.modal.id = 'zone-modal';
+    this.modal.setAttribute('role', 'dialog');
+    this.modal.setAttribute('aria-modal', 'true');
+    this.modal.setAttribute('aria-labelledby', 'modal-title');
+    this.modal.hidden = true;
 
-    // Create modal container
-    const modal = document.createElement('div');
-    modal.id = 'zone-modal';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-labelledby', 'modal-title');
-    modal.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) scale(0.95);
-      width: 90%;
-      max-width: 680px;
-      max-height: 85vh;
-      overflow-y: auto;
-      background: #F3E9D6;
-      border-radius: 8px;
-      box-shadow: 0 20px 60px rgba(36, 26, 56, 0.4);
-      z-index: 10000;
-      opacity: 0;
-      transition: opacity 0.3s ease, transform 0.3s ease;
-      pointer-events: none;
-      font-family: system-ui, -apple-system, sans-serif;
-    `;
-    
-    // Torn paper edge effect using clip-path
-    modal.style.clipPath = 'polygon(0% 0%, 100% 0%, 100% 98%, 98% 100%, 96% 98%, 94% 100%, 92% 98%, 90% 100%, 88% 98%, 86% 100%, 84% 98%, 82% 100%, 80% 98%, 78% 100%, 76% 98%, 74% 100%, 72% 98%, 70% 100%, 68% 98%, 66% 100%, 64% 98%, 62% 100%, 60% 98%, 58% 100%, 56% 98%, 54% 100%, 52% 98%, 50% 100%, 48% 98%, 46% 100%, 44% 98%, 42% 100%, 40% 98%, 38% 100%, 36% 98%, 34% 100%, 32% 98%, 30% 100%, 28% 98%, 26% 100%, 24% 98%, 22% 100%, 20% 98%, 18% 100%, 16% 98%, 14% 100%, 12% 98%, 10% 100%, 8% 98%, 6% 100%, 4% 98%, 2% 100%, 0% 98%)';
-    
-    document.body.appendChild(modal);
-    this.modalElement = modal;
+    this.content = document.createElement('div');
+    this.content.className = 'modal-content';
+    this.modal.appendChild(this.content);
 
-    // Create content container
-    const content = document.createElement('div');
-    content.className = 'modal-content';
-    content.style.cssText = `
-      padding: 0;
-      color: #241A38;
-      line-height: 1.6;
-    `;
-    modal.appendChild(content);
-    this.contentElement = content;
+    document.body.append(this.overlay, this.modal);
 
-    // Close on overlay click
-    overlay.addEventListener('click', () => this.close());
-    
-    // Close on Escape key
+    this.overlay.addEventListener('click', () => this.close());
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.isOpen()) {
+      if (!this.open_) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
         this.close();
+      } else if (e.key === 'Tab') {
+        this.cycleFocus(e);
       }
     });
-
-    console.log('📜 GATE 3 — Modal DOM created');
+    // Any close button rendered inside the card
+    this.modal.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-close]')) this.close();
+    });
   }
 
-  private isOpen(): boolean {
-    return this.modalElement?.style.opacity === '1';
+  isOpen(): boolean {
+    return this.open_;
   }
 
   open(zoneId: string): void {
-    const zoneContent = zones.find(z => z.id === zoneId);
-    if (!zoneContent || !this.modalElement || !this.contentElement || !this.overlayElement) {
-      console.error('Modal or content not found');
-      return;
-    }
+    const zone = zones.find((z) => z.id === zoneId);
+    if (!zone) return;
+    this.show('zone', zone.title, this.renderZone(zone));
+    this.onOpenCallback?.(zoneId);
+  }
 
-    // Store previous focus for restoration
-    this.previousFocus = document.activeElement as HTMLElement;
+  openContact(): void {
+    this.show('contact', 'Say hello', `
+      <p class="modal-intro">If you want something like this growing in your organisation — say hello.</p>
+      ${contactHtml()}
+      <p class="modal-links">
+        <a href="/static.html">Read the plain-text version →</a>
+      </p>`);
+  }
 
-    // Render content
-    this.contentElement.innerHTML = this.renderZoneContent(zoneContent);
-
-    // Show modal
-    this.overlayElement.style.pointerEvents = 'auto';
-    this.overlayElement.style.opacity = '1';
-    this.modalElement.style.pointerEvents = 'auto';
-    this.modalElement.style.opacity = '1';
-    this.modalElement.style.transform = 'translate(-50%, -50%) scale(1)';
-
-    // Trap focus
-    this.trapFocus();
-
-    // Callback
-    if (this.onOpenCallback) {
-      this.onOpenCallback(zoneId);
-    }
-
-    console.log(`📖 Modal opened: ${zoneId}`);
+  openCompletion(): void {
+    this.show('completion', "You've seen the whole garden.", `
+      <p class="modal-intro">If you want something like it growing in your organisation — say hello.</p>
+      <p class="modal-sign">— David</p>
+      ${contactHtml()}`);
   }
 
   close(): void {
-    if (!this.modalElement || !this.overlayElement) return;
-
-    // Hide modal
-    this.overlayElement.style.opacity = '0';
-    this.overlayElement.style.pointerEvents = 'none';
-    this.modalElement.style.opacity = '0';
-    this.modalElement.style.transform = 'translate(-50%, -50%) scale(0.95)';
-    this.modalElement.style.pointerEvents = 'none';
-
-    // Restore focus
-    if (this.previousFocus) {
-      this.previousFocus.focus();
-      this.previousFocus = null;
-    }
-
-    // Callback
-    if (this.onCloseCallback) {
-      this.onCloseCallback();
-    }
-
-    console.log('📕 Modal closed');
+    if (!this.open_) return;
+    this.open_ = false;
+    this.modal.classList.remove('is-open');
+    this.overlay.classList.remove('is-open');
+    audio.play('modal_close');
+    window.setTimeout(() => {
+      if (this.open_) return;
+      this.modal.hidden = true;
+      this.overlay.hidden = true;
+    }, 320);
+    const prev = this.previousFocus;
+    this.previousFocus = null;
+    if (prev && typeof prev.focus === 'function' && prev !== document.body) prev.focus();
+    else (document.activeElement as HTMLElement | null)?.blur?.();
+    this.onCloseCallback?.();
+    this.onStateChange?.(false);
   }
 
-  private renderZoneContent(zone: ZoneContent): string {
-    let html = `
-      <div style="padding: 32px 40px;">
-        <!-- Header with close button -->
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 3px solid #A78BFA; padding-bottom: 16px;">
-          <h2 id="modal-title" style="margin: 0; font-size: 28px; font-weight: 700; color: #241A38; font-family: 'Comic Sans MS', 'Chalkboard SE', cursive;">
-            ${zone.title}
-          </h2>
-          <button 
-            onclick="document.getElementById('zone-modal')?.closest('[role=dialog]')?.dispatchEvent(new CustomEvent('close'))"
-            aria-label="Close modal"
-            style="background: none; border: none; font-size: 32px; color: #6E4A2E; cursor: pointer; padding: 0; line-height: 1; opacity: 0.7; transition: opacity 0.2s;"
-            onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'"
-          >×</button>
+  private show(kind: ModalKind, title: string, bodyHtml: string): void {
+    this.previousFocus = document.activeElement as HTMLElement;
+    this.modal.dataset.kind = kind;
+    this.content.innerHTML = `
+      <div class="modal-header">
+        <h2 id="modal-title">${escapeHtml(title)}</h2>
+        <button type="button" class="modal-x" data-close aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">${bodyHtml}</div>
+      <div class="modal-footer">
+        ${kind === 'zone' ? contactHtml() : ''}
+        <div class="modal-actions">
+          <button type="button" class="modal-close" data-close>Close</button>
+          <a class="modal-skip" href="/static.html">skip the garden →</a>
         </div>
+      </div>`;
+    this.overlay.hidden = false;
+    this.modal.hidden = false;
+    // Force a layout so the transition runs from the hidden state.
+    void this.modal.offsetWidth;
+    this.overlay.classList.add('is-open');
+    this.modal.classList.add('is-open');
+    this.modal.scrollTop = 0;
+    this.open_ = true;
+    audio.play('modal_open');
+    this.onStateChange?.(true);
+    // Focus the heading region first so screen readers announce the title,
+    // then Tab moves to the close button.
+    const first = this.modal.querySelector<HTMLElement>('.modal-x');
+    first?.focus();
+  }
 
-        <!-- Intro line (handwritten voice) -->
-        <p style="font-size: 18px; font-style: italic; color: #6E4A2E; margin-bottom: 28px; font-family: 'Comic Sans MS', 'Chalkboard SE', cursive; border-left: 4px solid #FF6FB0; padding-left: 16px;">
-          ${zone.intro}
-        </p>
-
-        <!-- Professional content -->
-        <div style="margin-bottom: 32px;">
-    `;
-
+  private renderZone(zone: ZoneContent): string {
+    let html = `<p class="modal-intro">${escapeHtml(zone.intro)}</p><div class="modal-pro">`;
     zone.professional.forEach((section) => {
-      if (section.heading) {
-        // Render heading with markdown-style bold
-        const headingText = section.heading.replace(/\*\*/g, '');
-        html += `<h3 style="font-size: 16px; font-weight: 700; color: #241A38; margin: 24px 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">${headingText}</h3>`;
-      }
-
-      if (section.text) {
-        html += `<p style="margin: 0 0 16px 0; font-size: 15px;">${section.text}</p>`;
-      }
-
+      if (section.heading) html += `<h3>${inline(section.heading)}</h3>`;
+      if (section.text) html += `<p>${inline(section.text)}</p>`;
       if (section.items) {
-        html += `<ul style="margin: 0 0 16px 0; padding-left: 20px;">`;
+        html += '<ul>';
         section.items.forEach((item) => {
           if (typeof item === 'string') {
-            // Check if item contains a link
-            const linkMatch = item.match(/\[(.*?)\]\((.*?)\)/);
-            if (linkMatch) {
-              const [_, linkText, linkUrl] = linkMatch;
-              const itemText = item.replace(/\[.*?\]\(.*?\)/, '').trim();
-              html += `<li style="margin: 8px 0; font-size: 15px;">${itemText} <a href="${linkUrl}" target="_blank" rel="noopener noreferrer" style="color: #A78BFA; text-decoration: none; font-weight: 600;">${linkText}</a></li>`;
-            } else {
-              // Handle bold text
-              const formattedItem = item.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-              html += `<li style="margin: 8px 0; font-size: 15px;">${formattedItem}</li>`;
-            }
-          } else if (typeof item === 'object' && item.link) {
-            html += `<li style="margin: 8px 0; font-size: 15px;"><a href="${item.link}" target="_blank" rel="noopener noreferrer" style="color: #A78BFA; text-decoration: none; font-weight: 600;">${item.text}</a></li>`;
+            html += `<li>${inline(item)}</li>`;
+          } else {
+            const label = item.text.replace(/^\[|\]$/g, '');
+            const external = /^https?:/.test(item.link);
+            html += `<li><a href="${escapeHtml(item.link)}"${external ? ' target="_blank" rel="noopener noreferrer"' : ''}>${escapeHtml(label)}</a></li>`;
           }
         });
-        html += `</ul>`;
+        html += '</ul>';
       }
-
       if (section.link) {
-        html += `<p style="margin: 12px 0;"><a href="${section.link.url}" target="_blank" rel="noopener noreferrer" style="color: #A78BFA; text-decoration: none; font-weight: 600; font-size: 15px;">${section.link.label}</a></p>`;
+        html += `<p class="modal-links"><a href="${escapeHtml(section.link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(section.link.label)}</a></p>`;
       }
     });
-
-    html += `
-        </div>
-
-        <!-- Footer with contact -->
-        <div style="border-top: 2px solid #A78BFA; padding-top: 20px; margin-top: 32px;">
-          <p style="font-size: 13px; color: #6E4A2E; white-space: pre-line; margin: 0 0 16px 0;">${zone.contactFooter}</p>
-          <button onclick="document.getElementById('zone-modal')?.dispatchEvent(new CustomEvent('close'))" style="background: #A78BFA; color: #F3E9D6; border: none; padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#8B6FD9'" onmouseout="this.style.background='#A78BFA'">Close</button>
-        </div>
-      </div>
-    `;
-
+    html += '</div>';
     return html;
   }
 
-  private trapFocus(): void {
-    if (!this.modalElement) return;
-
-    const focusableElements = this.modalElement.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    
-    if (focusableElements.length === 0) return;
-
-    const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
-
-    const handleTabKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-
-      if (e.shiftKey) {
-        if (document.activeElement === firstElement) {
-          e.preventDefault();
-          lastElement.focus();
-        }
-      } else {
-        if (document.activeElement === lastElement) {
-          e.preventDefault();
-          firstElement.focus();
-        }
-      }
-    };
-
-    this.modalElement.addEventListener('keydown', handleTabKey, { once: true });
-    firstElement.focus();
+  private cycleFocus(e: KeyboardEvent): void {
+    const focusable = Array.from(this.modal.querySelectorAll<HTMLElement>(FOCUSABLE))
+      .filter((el) => !el.hasAttribute('disabled'));
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    const inside = active ? this.modal.contains(active) : false;
+    if (e.shiftKey) {
+      if (!inside || active === first) { e.preventDefault(); last.focus(); }
+    } else if (!inside || active === last) { e.preventDefault(); first.focus(); }
   }
 
-  setOnOpen(callback: (zoneId: string) => void): void {
-    this.onOpenCallback = callback;
-  }
-
-  setOnClose(callback: () => void): void {
-    this.onCloseCallback = callback;
-  }
+  setOnOpen(cb: (zoneId: string) => void): void { this.onOpenCallback = cb; }
+  setOnClose(cb: () => void): void { this.onCloseCallback = cb; }
+  setOnStateChange(cb: (open: boolean) => void): void { this.onStateChange = cb; }
 }
+
+export { contactInfo };

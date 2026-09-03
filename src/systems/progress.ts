@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
+import { audio } from './audio';
+import { settings } from './settings';
 
+/**
+ * Progress & bloom (FR-4). Visited zones and every bloomed flower persist in
+ * localStorage so returning visitors find the world as they left it.
+ */
 export interface ProgressData {
   visitedZones: string[];
   bloomFlowers: Array<{ x: number; y: number; color: number }>;
@@ -7,64 +13,62 @@ export interface ProgressData {
 }
 
 const STORAGE_KEY = 'davidhynes_garden_progress';
+const ZONE_COUNT = 5;
+const BLOOM_COLORS = [0xFF6FB0, 0x5FE3DD, 0xA78BFA, 0xFF8C42];
+const CUSTOM_FLOWER_KEY: Record<number, string> = {
+  0xFF6FB0: 'flower-pink',
+  0x5FE3DD: 'flower-cyan',
+  0xA78BFA: 'flower-violet',
+  0xFF8C42: 'flower-orange',
+};
 
 export class ProgressManager {
   private scene: Phaser.Scene;
   private data: ProgressData;
-  private bloomGraphics: Phaser.GameObjects.Graphics;
-  private completionCard: Phaser.GameObjects.Container | null = null;
-  private onCompletionCallback: (() => void) | null = null;
   private worldBounds: Phaser.Geom.Rectangle;
+  private onCompletionCallback: (() => void) | null = null;
+  /** Areas where bursts should not land (set pieces, hive). */
+  private keepClear: Phaser.Geom.Circle[] = [];
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, worldBounds: Phaser.Geom.Rectangle) {
     this.scene = scene;
-    this.worldBounds = new Phaser.Geom.Rectangle(0, 0, 2000, 1400);
-    this.bloomGraphics = scene.add.graphics();
-    this.bloomGraphics.setDepth(999);
-    
-    // Load from localStorage or initialize
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        this.data = JSON.parse(saved);
-        console.log('📦 Loaded progress:', this.data.visitedZones.length, 'zones visited,', this.data.bloomFlowers.length, 'blooms');
-      } catch {
-        this.data = this.createDefaultData();
-      }
-    } else {
-      this.data = this.createDefaultData();
-    }
+    this.worldBounds = worldBounds;
+    this.data = this.load();
   }
 
-  private createDefaultData(): ProgressData {
-    return {
-      visitedZones: [],
-      bloomFlowers: [],
-      isComplete: false,
-    };
+  private load(): ProgressData {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ProgressData;
+        if (Array.isArray(parsed.visitedZones) && Array.isArray(parsed.bloomFlowers)) {
+          console.log('📦 Loaded progress:', parsed.visitedZones.length, 'zones,', parsed.bloomFlowers.length, 'blooms');
+          return parsed;
+        }
+      }
+    } catch { /* corrupt or unavailable storage */ }
+    return { visitedZones: [], bloomFlowers: [], isComplete: false };
   }
 
   save(): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data)); } catch { /* ignore */ }
   }
 
+  setKeepClear(circles: Phaser.Geom.Circle[]): void {
+    this.keepClear = circles;
+  }
+
+  /** @returns true if this is the first visit. */
   markZoneVisited(zoneId: string): boolean {
-    if (!this.data.visitedZones.includes(zoneId)) {
-      this.data.visitedZones.push(zoneId);
-      
-      // Trigger bloom burst for this visit
-      this.triggerBloomBurst();
-      
-      // Check completion
-      if (this.data.visitedZones.length >= 5 && !this.data.isComplete) {
-        this.data.isComplete = true;
-        this.triggerCompletion();
-      }
-      
-      this.save();
-      return true;
+    if (this.data.visitedZones.includes(zoneId)) return false;
+    this.data.visitedZones.push(zoneId);
+    this.triggerBloomBurst();
+    if (this.data.visitedZones.length >= ZONE_COUNT && !this.data.isComplete) {
+      this.data.isComplete = true;
+      this.triggerCompletion();
     }
-    return false;
+    this.save();
+    return true;
   }
 
   isZoneVisited(zoneId: string): boolean {
@@ -75,218 +79,96 @@ export class ProgressManager {
     return [...this.data.visitedZones];
   }
 
-  triggerBloomBurst(): void {
-    const count = 15 + Math.floor(Math.random() * 16); // 15-30 flowers
-    
-    console.log(`🌸 Bloom burst: ${count} new flowers`);
-    
-    for (let i = 0; i < count; i++) {
-      // Find random position not too close to existing blooms
-      let attempts = 0;
-      let x: number, y: number;
-      let tooClose: boolean;
-      
-      do {
-        const worldWidth = this.worldBounds.width;
-        const worldHeight = this.worldBounds.height;
-        
-        x = 50 + Math.random() * (worldWidth - 100);
-        y = 50 + Math.random() * (worldHeight - 100);
-        
-        tooClose = this.data.bloomFlowers.some(flower => {
-          const dist = Phaser.Math.Distance.Between(x, y, flower.x, flower.y);
-          return dist < 40;
-        });
-        
-        attempts++;
-      } while (tooClose && attempts < 20);
-      
-      if (!tooClose) {
-        // Pick a glowwave color
-        const colors = [0xFF6FB0, 0x5FE3DD, 0xA78BFA, 0xFF8C42];
-        const color = colors[Math.floor(Math.random() * colors.length)];
-        
-        this.data.bloomFlowers.push({ x, y, color });
-        
-        // Animate the bloom with stagger
-        this.scene.time.delayedCall(i * 50, () => {
-          this.createBloomFlower(x, y, color);
-        });
-      }
-    }
+  isComplete(): boolean {
+    return this.data.isComplete;
   }
 
-  private createBloomFlower(x: number, y: number, color: number): void {
-    const container = this.scene.add.container(x, y);
-    
-    // Flower petals
-    const petals = this.scene.add.circle(0, 0, 4 + Math.random() * 3, color);
-    const center = this.scene.add.circle(0, 0, 2, 0xF3E9D6);
-    
-    // Stem
-    const stemHeight = 8 + Math.random() * 8;
-    const stem = this.scene.add.rectangle(0, 6, 2, stemHeight, 0x6E4A2E);
-    stem.setAlpha(0.8);
-    
-    container.add([stem, petals, center]);
-    container.setDepth(10);
-    
-    // Pop animation
-    container.setScale(0);
-    this.scene.tweens.add({
-      targets: container,
-      scale: 1,
-      duration: 300,
-      ease: 'Back.out',
+  triggerBloomBurst(): void {
+    // 15–30 flowers, scaled down on low-end devices (FR-8 particle degrade)
+    const base = 15 + Math.floor(Math.random() * 16);
+    const count = Math.max(8, Math.round(base * settings.particleScale));
+    const placed: Array<{ x: number; y: number; color: number }> = [];
+
+    for (let i = 0; i < count; i++) {
+      let x = 0, y = 0, ok = false;
+      for (let attempt = 0; attempt < 24 && !ok; attempt++) {
+        x = 60 + Math.random() * (this.worldBounds.width - 120);
+        y = 60 + Math.random() * (this.worldBounds.height - 120);
+        const cx = x, cy = y;
+        const nearExisting = this.data.bloomFlowers.some((f) => Phaser.Math.Distance.Between(cx, cy, f.x, f.y) < 42)
+          || placed.some((f) => Phaser.Math.Distance.Between(cx, cy, f.x, f.y) < 42);
+        const onSetPiece = this.keepClear.some((c) => Phaser.Geom.Circle.Contains(c, cx, cy));
+        ok = !nearExisting && !onSetPiece;
+      }
+      if (!ok) continue;
+      const color = BLOOM_COLORS[Math.floor(Math.random() * BLOOM_COLORS.length)];
+      placed.push({ x, y, color });
+    }
+
+    console.log(`🌸 Bloom burst: ${placed.length} new flowers`);
+    placed.forEach((f, i) => {
+      this.data.bloomFlowers.push(f);
+      // Staggered pops — soft, not a fireworks show
+      this.scene.time.delayedCall(120 + i * 70, () => this.createBloomFlower(f.x, f.y, f.color, true));
     });
-    
-    // Play bloom sound (placeholder - actual audio in GATE 6)
-    console.log('🔊 Bloom pop');
+  }
+
+  private createBloomFlower(x: number, y: number, color: number, animate: boolean): void {
+    const c = this.scene.add.container(x, y);
+    const stemHeight = 8 + Math.random() * 8;
+    const stem = this.scene.add.rectangle(0, 6, 2, stemHeight, 0x6E4A2E).setAlpha(0.8);
+
+    const customKey = CUSTOM_FLOWER_KEY[color];
+    const head = this.scene.textures.exists(customKey)
+      ? this.scene.add.image(0, 0, customKey)
+      : this.scene.add.image(0, 0, 'petals').setTint(color).setScale(0.55 + Math.random() * 0.3);
+    const centre = this.scene.add.circle(0, 0, 2, 0xF3E9D6);
+    const glow = this.scene.add.circle(0, 0, 9, color, 0.18);
+    c.add([stem, glow, head, centre]);
+    c.setDepth(12);
+    c.setRotation((Math.random() - 0.5) * 0.3);
+
+    if (!animate) return;
+    c.setScale(0);
+    this.scene.tweens.add({ targets: c, scale: 1, duration: 320, ease: 'Back.easeOut' });
+    audio.play('bloom');
   }
 
   renderExistingBlooms(): void {
-    // Clear existing
-    this.bloomGraphics.clear();
-    
-    // Render all saved blooms
-    this.data.bloomFlowers.forEach(flower => {
-      this.createBloomFlower(flower.x, flower.y, flower.color);
-    });
-    
+    this.data.bloomFlowers.forEach((f) => this.createBloomFlower(f.x, f.y, f.color, false));
     console.log(`🌼 Rendered ${this.data.bloomFlowers.length} existing blooms`);
   }
 
   private triggerCompletion(): void {
-    console.log('🎉 COMPLETION! All 5 zones visited!');
-    
-    // Field-wide glow swell
-    const glowOverlay = this.scene.add.rectangle(
-      this.scene.scale.width / 2,
-      this.scene.scale.height / 2,
-      this.scene.scale.width,
-      this.scene.scale.height,
-      0xFF6FB0,
-      0
-    );
-    glowOverlay.setDepth(998);
-    
+    console.log('🎉 All 5 zones visited');
+    const cam = this.scene.cameras.main;
+    const overlay = this.scene.add.rectangle(0, 0, cam.width, cam.height, 0xFF6FB0, 0)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(998);
+    // Gentle field-wide glow swell
     this.scene.tweens.add({
-      targets: glowOverlay,
-      alpha: 0.15,
-      duration: 2000,
+      targets: overlay,
+      alpha: 0.16,
+      duration: 1600,
       ease: 'Sine.easeInOut',
       yoyo: true,
-      repeat: 1,
-      onComplete: () => {
-        this.scene.tweens.add({
-          targets: glowOverlay,
-          alpha: 0,
-          duration: 1500,
-        });
-      },
+      onComplete: () => overlay.destroy(),
     });
-    
-    // Show completion card
-    this.showCompletionCard();
-    
-    // Callback
-    if (this.onCompletionCallback) {
-      this.onCompletionCallback();
-    }
+    // Let the bloom burst breathe before the card lands
+    this.scene.time.delayedCall(1800, () => {
+      audio.play('completion');
+      this.onCompletionCallback?.();
+    });
   }
 
-  private showCompletionCard(): void {
-    if (this.completionCard) return; // Already shown
-    
-    const card = this.scene.add.container(
-      this.scene.cameras.main.scrollX + this.scene.cameras.main.width / 2,
-      this.scene.cameras.main.scrollY + this.scene.cameras.main.height / 2
-    );
-    card.setDepth(10000);
-    
-    // Card background with torn edge effect
-    const cardBg = this.scene.add.rectangle(0, 0, 420, 280, 0xF3E9D6);
-    cardBg.setStrokeStyle(3, 0xA78BFA);
-    
-    // Hand-lettered style text
-    const titleText = this.scene.add.text(0, -60, "You've seen the whole garden.", {
-      font: 'bold 22px "Comic Sans MS", "Chalkboard SE", cursive',
-      color: '#241A38',
-      align: 'center',
-      wordWrap: { width: 380 },
-    });
-    titleText.setOrigin(0.5);
-    
-    const subtitleText = this.scene.add.text(0, -20, "If you want something like it growing in your organisation — say hello.", {
-      font: '16px "Comic Sans MS", "Chalkboard SE", cursive',
-      color: '#6E4A2E',
-      align: 'center',
-      wordWrap: { width: 360 },
-    });
-    subtitleText.setOrigin(0.5);
-    
-    // Contact block
-    const contactText = this.scene.add.text(0, 50, 
-      "David Hynes\nMelbourne, VIC\n0411 039 718\nd.hynes.mnk@gmail.com\n@dave.likeswine",
-      {
-        font: '14px system-ui',
-        color: '#241A38',
-        align: 'center',
-        lineSpacing: 22,
-      }
-    );
-    contactText.setOrigin(0.5);
-    
-    // Close button
-    const closeBtn = this.scene.add.text(0, 110, "✕ Close", {
-      font: 'bold 14px system-ui',
-      color: '#A78BFA',
-    });
-    closeBtn.setOrigin(0.5);
-    closeBtn.setInteractive({ useHandCursor: true });
-    
-    closeBtn.on('pointerover', () => {
-      closeBtn.setStyle({ color: '#FF6FB0' });
-    });
-    
-    closeBtn.on('pointerout', () => {
-      closeBtn.setStyle({ color: '#A78BFA' });
-    });
-    
-    closeBtn.on('pointerdown', () => {
-      this.scene.tweens.add({
-        targets: card,
-        alpha: 0,
-        scale: 0.9,
-        duration: 300,
-        onComplete: () => card.destroy(),
-      });
-    });
-    
-    card.add([cardBg, titleText, subtitleText, contactText, closeBtn]);
-    
-    // Entrance animation
-    card.setScale(0.8);
-    card.setAlpha(0);
-    this.scene.tweens.add({
-      targets: card,
-      scale: 1,
-      alpha: 1,
-      duration: 600,
-      ease: 'Back.out',
-    });
-    
-    this.completionCard = card;
-  }
-
-  setOnCompletion(callback: () => void): void {
-    this.onCompletionCallback = callback;
+  setOnCompletion(cb: () => void): void {
+    this.onCompletionCallback = cb;
   }
 
   resetProgress(): void {
-    this.data = this.createDefaultData();
-    this.save();
-    localStorage.removeItem(STORAGE_KEY);
-    console.log('🗑️ Progress reset');
+    this.data = { visitedZones: [], bloomFlowers: [], isComplete: false };
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    console.log('🗑️ Progress reset — reload to see a fresh garden');
   }
 }

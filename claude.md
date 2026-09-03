@@ -49,10 +49,23 @@ Every decision favours "unforgettable but professional" over "flashy but empty."
 ## File structure
 src/
   main.ts              # boot
-  scenes/              # Boot, Preload, World, UI overlay scene
-  entities/            # bee.ts, zones.ts, flowers.ts
-  systems/             # input.ts (keys + joystick), progress.ts, audio.ts
-  ui/                  # modal DOM components, hint, joystick markup
-  content/             # zone content as typed data (from content-map.md)
-public/assets/         # sprites, textures, sounds
-docs/                  # these documents
+  scenes/              # Boot, Preload (manifest-driven custom art), World
+  entities/            # bee.ts (multi-part puppet)
+  systems/             # input.ts, mobile-input.ts, zones.ts, progress.ts,
+                       # audio.ts (foley engine), settings.ts (reduced motion, quality)
+  ui/                  # modal.ts, hint.ts, controls.ts (mute + skip link)
+  content/             # zones.ts (copy from content-map.md), assets.ts (sprite keys)
+static.html            # "skip the garden" plain-text view (second Vite entry)
+public/assets/         # fonts/, sprites/ (+ manifest.json), audio/, og-image, favicons
+docs/                  # these documents; docs/handover.md = current status
+
+## Dropping in real assets (no code changes)
+- Art: PNGs into public/assets/sprites/ + list them in sprites/manifest.json.
+  Keys, file names and sizes are documented in src/content/assets.ts.
+- Foley: public/assets/audio/<id>.ogg (+ .mp3) named per docs/audio.md.
+  Procedural placeholders play until a recording exists.
+
+## Verifying
+- `npm run build` must pass (tsc strict + vite).
+- Lighthouse a11y target ≥ 95: `npm run preview` then `npx lighthouse http://localhost:4173/`.
+- Keyboard-only playthrough: Tab/Enter/Esc inside modals, arrows + E in the world.

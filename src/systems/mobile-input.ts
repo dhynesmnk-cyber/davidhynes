@@ -1,252 +1,188 @@
-/**
- * Mobile Input Handler - Virtual Joystick & Touch Controls
- */
+import Phaser from 'phaser';
 
+/**
+ * Mobile input (FR-1, GATE 5): felt-disc joystick with a wooden knob in the
+ * lower-left, a wing/foot walk-fly switch attached above it, and a
+ * context interact button bottom-right that appears near zones.
+ *
+ * Only created on touch devices. The joystick is "floating": touch anywhere
+ * in the lower-left half and it re-centres under your thumb.
+ */
 export class MobileInput {
   private scene: Phaser.Scene;
-  private joystickBase: Phaser.GameObjects.Container | null = null;
-  private joystickKnob: Phaser.GameObjects.Ellipse | null = null;
-  private walkFlyToggle: Phaser.GameObjects.Container | null = null;
-  private interactButton: Phaser.GameObjects.Container | null = null;
-  private iconContainer: Phaser.GameObjects.Container | null = null;
-  
-  private isDragging: boolean = false;
-  private dragStartX: number = 0;
-  private dragStartY: number = 0;
-  private currentForce: number = 0;
-  
-  private moveVector: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
-  private onMoveChange: ((vector: Phaser.Math.Vector2) => void) | null = null;
+  private enabled = false;
+  private joystickBase!: Phaser.GameObjects.Container;
+  private joystickKnob!: Phaser.GameObjects.Ellipse;
+  private toggle!: Phaser.GameObjects.Container;
+  private toggleIcon!: Phaser.GameObjects.Container;
+  private interactButton!: Phaser.GameObjects.Container;
+
+  private activePointerId: number | null = null;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private restX = 84;
+  private restY = 0;
+  private readonly maxDistance = 42;
+  private moveVector = new Phaser.Math.Vector2(0, 0);
+  private isFlying = false;
+
   private onInteractPress: (() => void) | null = null;
   private onTogglePress: (() => void) | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    
-    // Only create on touch devices
-    if (!this.scene.sys.game.device.input.touch) {
-      return;
-    }
-    
+    if (!scene.sys.game.device.input.touch) return;
+    this.enabled = true;
+    scene.input.addPointer(2);
     this.createJoystick();
-    this.createWalkFlyToggle();
+    this.createToggle();
     this.createInteractButton();
-    this.setupTouchListeners();
+    this.setupListeners();
+    this.layout();
+    scene.scale.on('resize', () => this.layout());
+  }
+
+  get isEnabled(): boolean {
+    return this.enabled;
+  }
+
+  private layout(): void {
+    const w = this.scene.scale.width;
+    const h = this.scene.scale.height;
+    this.restX = 84;
+    this.restY = h - 92;
+    if (this.activePointerId === null) this.joystickBase.setPosition(this.restX, this.restY);
+    this.toggle.setPosition(this.restX + 72, this.restY - 62);
+    this.interactButton.setPosition(w - 76, h - 92);
   }
 
   private createJoystick(): void {
-    const baseX = 80;
-    const baseY = this.scene.scale.height - 80;
-    
-    // Joystick base (felt disc)
-    this.joystickBase = this.scene.add.container(baseX, baseY);
-    const baseCircle = this.scene.add.circle(0, 0, 50, 0x8B4513); // Brown felt
-    baseCircle.setStrokeStyle(3, 0x6E4A2E);
-    
-    // Add texture grain
-    const grain = this.scene.add.circle(0, 0, 48, 0x965638);
-    grain.setAlpha(0.3);
-    
-    this.joystickBase.add([baseCircle, grain]);
-    this.joystickBase.setScrollFactor(0);
-    this.joystickBase.setDepth(1000);
-    
-    // Joystick knob (wooden)
-    this.joystickKnob = this.scene.add.ellipse(0, 0, 25, 25, 0xC97B3D);
+    this.joystickBase = this.scene.add.container(0, 0);
+    const disc = this.scene.add.circle(0, 0, 50, 0x6E4A2E, 0.85);
+    disc.setStrokeStyle(3, 0x8B5A2B, 0.9);
+    const grain = this.scene.add.circle(0, 0, 44, 0x8B5A2B, 0.25);
+    const ring = this.scene.add.circle(0, 0, 30, 0x000000, 0).setStrokeStyle(1, 0xF3E9D6, 0.15);
+    this.joystickKnob = this.scene.add.ellipse(0, 0, 30, 30, 0xC97B3D);
     this.joystickKnob.setStrokeStyle(2, 0x6E4A2E);
-    this.joystickBase.add(this.joystickKnob);
-    
-    this.joystickBase.setVisible(false);
+    this.joystickBase.add([disc, grain, ring, this.joystickKnob]);
+    this.joystickBase.setScrollFactor(0).setDepth(5000).setAlpha(0.75);
   }
 
-  private createWalkFlyToggle(): void {
-    const toggleX = 80;
-    const toggleY = this.scene.scale.height - 140;
-    
-    this.walkFlyToggle = this.scene.add.container(toggleX, toggleY);
-    
-    // Toggle background (rounded rectangle using ellipse + rect combo)
-    const bg = this.scene.add.rectangle(0, 0, 50, 30, 0x3A2B55);
+  private createToggle(): void {
+    this.toggle = this.scene.add.container(0, 0);
+    const bg = this.scene.add.rectangle(0, 0, 64, 34, 0x3A2B55, 0.95);
     bg.setStrokeStyle(2, 0x6E4A2E);
-    bg.setRounded(8);
-    
-    // Icon container
-    this.iconContainer = this.scene.add.container(0, 0);
-    
-    // Foot icon (walk mode)
-    const foot = this.scene.add.ellipse(0, 0, 12, 18, 0xFF6FB0);
-    this.iconContainer.add(foot);
-    
-    this.walkFlyToggle.add([bg, this.iconContainer]);
-    this.walkFlyToggle.setScrollFactor(0);
-    this.walkFlyToggle.setDepth(1000);
-    this.walkFlyToggle.setVisible(false);
-    
-    // Make toggle interactive
-    this.walkFlyToggle.setSize(50, 30);
-    this.walkFlyToggle.setInteractive({ useHandCursor: true });
+    bg.setRounded?.(10);
+    this.toggleIcon = this.scene.add.container(0, 0);
+    this.toggle.add([bg, this.toggleIcon]);
+    this.toggle.setScrollFactor(0).setDepth(5001);
+    this.toggle.setSize(64, 34);
+    this.toggle.setInteractive({ useHandCursor: true });
+    this.toggle.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      pointer.event?.stopPropagation?.();
+      this.onTogglePress?.();
+    });
+    this.drawToggleIcon();
+  }
+
+  private drawToggleIcon(): void {
+    this.toggleIcon.removeAll(true);
+    const label = this.scene.add.text(0, 0, this.isFlying ? 'FLY' : 'WALK', {
+      font: 'bold 11px Nunito, system-ui',
+      color: this.isFlying ? '#5FE3DD' : '#FF6FB0',
+    }).setOrigin(0.5);
+    this.toggleIcon.add(label);
   }
 
   private createInteractButton(): void {
-    const buttonX = this.scene.scale.width - 80;
-    const buttonY = this.scene.scale.height - 80;
-    
-    this.interactButton = this.scene.add.container(buttonX, buttonY);
-    
-    // Button background
-    const bg = this.scene.add.circle(0, 0, 40, 0xFF6FB0);
-    bg.setStrokeStyle(3, 0xA78BFA);
-    
-    // Hand icon
-    const hand = this.scene.add.text(0, 0, '✋', {
-      fontSize: '24px',
-      fontFamily: 'handwritten'
-    }).setOrigin(0.5);
-    
+    this.interactButton = this.scene.add.container(0, 0);
+    const bg = this.scene.add.circle(0, 0, 36, 0xFF6FB0, 0.95);
+    bg.setStrokeStyle(3, 0xF3E9D6, 0.8);
+    const hand = this.scene.add.text(0, 1, '✋', { fontSize: '26px' }).setOrigin(0.5);
     this.interactButton.add([bg, hand]);
-    this.interactButton.setScrollFactor(0);
-    this.interactButton.setDepth(1000);
-    this.interactButton.setVisible(false);
-    
-    // Make button interactive
+    this.interactButton.setScrollFactor(0).setDepth(5001);
     this.interactButton.setSize(80, 80);
     this.interactButton.setInteractive({ useHandCursor: true });
+    this.interactButton.setVisible(false);
+    this.interactButton.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      pointer.event?.stopPropagation?.();
+      this.onInteractPress?.();
+    });
   }
 
-  private setupTouchListeners(): void {
+  private setupListeners(): void {
     const input = this.scene.input;
-    
-    // Joystick touch handling
-    input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.x < this.scene.scale.width / 2 && pointer.y > this.scene.scale.height / 2) {
-        // Left bottom quadrant - activate joystick
-        this.isDragging = true;
-        this.dragStartX = pointer.x;
-        this.dragStartY = pointer.y;
-        
-        if (this.joystickBase) {
-          this.joystickBase.setPosition(pointer.x, pointer.y);
-          this.joystickBase.setVisible(true);
-          this.joystickKnob?.setPosition(0, 0);
-        }
-        
-        if (this.walkFlyToggle) {
-          this.walkFlyToggle.setPosition(pointer.x, pointer.y - 60);
-          this.walkFlyToggle.setVisible(true);
-        }
-      }
+
+    input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: unknown[]) => {
+      if (this.activePointerId !== null) return;
+      if (over && over.length > 0) return; // tapped a button / marker
+      const w = this.scene.scale.width;
+      const h = this.scene.scale.height;
+      if (pointer.x > w * 0.6 || pointer.y < h * 0.4) return;
+      this.activePointerId = pointer.id;
+      this.dragStartX = pointer.x;
+      this.dragStartY = pointer.y;
+      this.joystickBase.setPosition(pointer.x, pointer.y).setAlpha(1);
+      this.joystickKnob.setPosition(0, 0);
     });
-    
+
     input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (!this.isDragging || !this.joystickKnob) return;
-      
+      if (pointer.id !== this.activePointerId) return;
       const dx = pointer.x - this.dragStartX;
       const dy = pointer.y - this.dragStartY;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const maxDistance = 40;
-      
-      const clampedDistance = Math.min(distance, maxDistance);
+      const dist = Math.min(Math.hypot(dx, dy), this.maxDistance);
       const angle = Math.atan2(dy, dx);
-      
-      const knobX = Math.cos(angle) * clampedDistance;
-      const knobY = Math.sin(angle) * clampedDistance;
-      
-      this.joystickKnob.setPosition(knobX, knobY);
-      
-      // Calculate normalized move vector
-      this.currentForce = clampedDistance / maxDistance;
-      
-      this.moveVector.x = Math.cos(angle) * this.currentForce;
-      this.moveVector.y = Math.sin(angle) * this.currentForce;
-      
-      if (this.onMoveChange) {
-        this.onMoveChange(this.moveVector);
-      }
+      this.joystickKnob.setPosition(Math.cos(angle) * dist, Math.sin(angle) * dist);
+      const force = dist / this.maxDistance;
+      // small dead zone so a resting thumb doesn't creep
+      if (force < 0.12) { this.moveVector.set(0, 0); return; }
+      this.moveVector.set(Math.cos(angle) * force, Math.sin(angle) * force);
     });
-    
-    input.on('pointerup', () => {
-      this.isDragging = false;
+
+    const release = (pointer: Phaser.Input.Pointer) => {
+      if (pointer.id !== this.activePointerId) return;
+      this.activePointerId = null;
       this.moveVector.set(0, 0);
-      
-      if (this.onMoveChange) {
-        this.onMoveChange(this.moveVector);
-      }
-      
-      if (this.joystickBase) {
-        this.joystickBase.setVisible(false);
-      }
-      if (this.walkFlyToggle) {
-        this.walkFlyToggle.setVisible(false);
-      }
-      if (this.interactButton) {
-        this.interactButton.setVisible(false);
-      }
-    });
-    
-    // Interact button press
-    if (this.interactButton) {
-      this.interactButton.on('pointerdown', () => {
-        if (this.onInteractPress) {
-          this.onInteractPress();
-        }
+      this.joystickKnob.setPosition(0, 0);
+      this.scene.tweens.add({
+        targets: this.joystickBase,
+        x: this.restX,
+        y: this.restY,
+        alpha: 0.75,
+        duration: 250,
+        ease: 'Cubic.easeOut',
       });
-    }
-    
-    // Walk/fly toggle press
-    if (this.walkFlyToggle) {
-      this.walkFlyToggle.on('pointerdown', () => {
-        if (this.onTogglePress) {
-          this.onTogglePress();
-        }
-        this.updateToggleIcon();
-      });
-    }
+    };
+    input.on('pointerup', release);
+    input.on('pointerupoutside', release);
   }
 
-  private updateToggleIcon(): void {
-    if (!this.iconContainer) return;
-    
-    this.iconContainer.removeAll(true);
-    
-    // Toggle between foot and wing icons
-    const isFlying = this.scene.registry.get('isFlying') || false;
-    
-    if (isFlying) {
-      // Wing icon for fly mode (using triangle)
-      const wing = this.scene.add.triangle(0, 0, 8, -6, 0, -12, -8, -6, 0x5FE3DD);
-      this.iconContainer.add(wing);
-    } else {
-      // Foot icon for walk mode
-      const foot = this.scene.add.ellipse(0, 0, 12, 18, 0xFF6FB0);
-      this.iconContainer.add(foot);
+  setFlying(flying: boolean): void {
+    this.isFlying = flying;
+    if (this.enabled) this.drawToggleIcon();
+  }
+
+  setOnInteractPress(cb: () => void): void { this.onInteractPress = cb; }
+  setOnTogglePress(cb: () => void): void { this.onTogglePress = cb; }
+
+  showInteractButton(show: boolean): void {
+    if (!this.enabled) return;
+    if (show && !this.interactButton.visible) {
+      this.interactButton.setVisible(true).setScale(0.6);
+      this.scene.tweens.add({ targets: this.interactButton, scale: 1, duration: 220, ease: 'Back.easeOut' });
+    } else if (!show) {
+      this.interactButton.setVisible(false);
     }
   }
 
-  public setOnMoveChange(callback: (vector: Phaser.Math.Vector2) => void): void {
-    this.onMoveChange = callback;
+  getMoveVector(): Phaser.Math.Vector2 {
+    return this.moveVector;
   }
 
-  public setOnInteractPress(callback: () => void): void {
-    this.onInteractPress = callback;
-  }
-
-  public setOnTogglePress(callback: () => void): void {
-    this.onTogglePress = callback;
-  }
-
-  public showInteractButton(show: boolean): void {
-    if (this.interactButton && this.scene.sys.game.device.input.touch) {
-      this.interactButton.setVisible(show);
-    }
-  }
-
-  public getMoveVector(): Phaser.Math.Vector2 {
-    return this.moveVector.clone();
-  }
-
-  public destroy(): void {
-    this.joystickBase?.destroy(true);
-    this.walkFlyToggle?.destroy(true);
-    this.interactButton?.destroy(true);
+  setUiVisible(visible: boolean): void {
+    if (!this.enabled) return;
+    this.joystickBase.setVisible(visible);
+    this.toggle.setVisible(visible);
+    if (!visible) this.interactButton.setVisible(false);
   }
 }

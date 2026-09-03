@@ -1,62 +1,125 @@
 import Phaser from 'phaser';
+import { optionalAssets, SPRITE_DIR, SPRITE_MANIFEST } from '../content/assets';
 
+/**
+ * PreloadScene
+ *  1. Reads public/assets/sprites/manifest.json and loads whichever of
+ *     David's custom sprites are listed there (see content/assets.ts).
+ *  2. Generates procedural placeholder textures for everything else:
+ *     multi-part bee, paper wing, petals, felt grain overlay.
+ */
 export class PreloadScene extends Phaser.Scene {
   constructor() {
     super({ key: 'PreloadScene' });
   }
 
   preload(): void {
-    // For GATE 1, we create simple placeholder assets programmatically
-    
-    // Create a simple placeholder bee texture programmatically
-    const graphics = this.make.graphics({ x: 0, y: 0 });
-    
-    // Bee body (felt orange circle)
-    graphics.fillStyle(0xC97B3D, 1);
-    graphics.fillCircle(16, 16, 12);
-    
-    // Bee wings (paper white ovals)
-    graphics.fillStyle(0xF3E9D6, 0.9);
-    graphics.fillEllipse(10, 10, 8, 5);
-    graphics.fillEllipse(22, 10, 8, 5);
-    
-    // Generate texture
-    graphics.generateTexture('bee-placeholder', 32, 32);
-    graphics.destroy();
-    
-    // Create placeholder wing texture - larger and more visible
-    const wingGraphics = this.make.graphics({ x: 0, y: 0 });
-    wingGraphics.fillStyle(0xF3E9D6, 1);
-    wingGraphics.fillEllipse(12, 6, 16, 10);
-    // Wing veins
-    wingGraphics.lineStyle(1, 0x6E4A2E, 0.5);
-    wingGraphics.beginPath();
-    wingGraphics.moveTo(4, 3);
-    wingGraphics.lineTo(12, 6);
-    wingGraphics.strokePath();
-    wingGraphics.generateTexture('bee-wing-placeholder', 20, 12);
-    wingGraphics.destroy();
-    
-    // Create placeholder flower texture
-    const flowerGraphics = this.make.graphics({ x: 0, y: 0 });
-    flowerGraphics.fillStyle(0xFF6FB0, 1);
-    flowerGraphics.fillCircle(8, 8, 6);
-    flowerGraphics.fillStyle(0x5FE3DD, 1);
-    flowerGraphics.fillCircle(8, 8, 3);
-    flowerGraphics.generateTexture('flower-placeholder', 16, 16);
-    flowerGraphics.destroy();
-    
-    // Create placeholder zone object texture
-    const zoneGraphics = this.make.graphics({ x: 0, y: 0 });
-    zoneGraphics.fillStyle(0x6E4A2E, 1);
-    zoneGraphics.fillRect(0, 10, 40, 30);
-    zoneGraphics.fillStyle(0xC97B3D, 1);
-    zoneGraphics.fillRect(5, 0, 30, 15);
-    zoneGraphics.generateTexture('zone-placeholder', 40, 40);
-    zoneGraphics.destroy();
+    this.load.json('sprite-manifest', SPRITE_MANIFEST);
   }
 
   create(): void {
-    this.scene.start('WorldScene');
+    const manifest = this.cache.json.get('sprite-manifest') as { files?: string[] } | undefined;
+    const listed = new Set(manifest?.files ?? []);
+    const toLoad = optionalAssets.filter((a) => listed.has(a.file));
+
+    const finish = () => {
+      this.makeBeeTextures();
+      this.makeFlowerTexture();
+      if (!this.textures.exists('grain')) this.makeGrainTexture();
+      this.scene.start('WorldScene');
+    };
+
+    if (toLoad.length === 0) {
+      finish();
+      return;
+    }
+
+    // Second load pass for the custom art listed in the manifest.
+    toLoad.forEach((a) => this.load.image(a.key, `${SPRITE_DIR}${a.file}`));
+    this.load.once('complete', () => {
+      const custom = toLoad.filter((a) => this.textures.exists(a.key)).map((a) => a.key);
+      if (custom.length) console.log('🎨 Custom art loaded:', custom.join(', '));
+      finish();
+    });
+    this.load.start();
+  }
+
+  private makeBeeTextures(): void {
+    // Abdomen (the butt): plush ellipse with dark felt stripes. Origin is set
+    // on the sprite at its FRONT (right) so it can swing from the waist.
+    const ab = this.make.graphics({ x: 0, y: 0 });
+    ab.fillStyle(0xC97B3D, 1);
+    ab.fillEllipse(14, 10, 28, 20);
+    ab.fillStyle(0x241A38, 1);
+    ab.fillEllipse(9, 10, 5, 19);
+    ab.fillEllipse(17, 10, 5, 20);
+    // felt highlight
+    ab.fillStyle(0xF3E9D6, 0.18);
+    ab.fillEllipse(13, 6, 16, 5);
+    ab.generateTexture('bee-abdomen', 28, 20);
+    ab.destroy();
+
+    // Thorax: fuzzy round body
+    const th = this.make.graphics({ x: 0, y: 0 });
+    th.fillStyle(0xC97B3D, 1);
+    th.fillCircle(11, 11, 10);
+    th.fillStyle(0xF3E9D6, 0.22);
+    th.fillCircle(9, 8, 5);
+    th.generateTexture('bee-thorax', 22, 22);
+    th.destroy();
+
+    // Head: dark plum with a paper eye
+    const hd = this.make.graphics({ x: 0, y: 0 });
+    hd.fillStyle(0x241A38, 1);
+    hd.fillCircle(7, 7, 7);
+    hd.fillStyle(0xF3E9D6, 1);
+    hd.fillCircle(9, 6, 2.2);
+    hd.fillStyle(0x241A38, 1);
+    hd.fillCircle(9.6, 6, 1);
+    hd.generateTexture('bee-head', 14, 14);
+    hd.destroy();
+
+    // Paper wing: root at the left edge, pointing right, with a vein.
+    if (!this.textures.exists('bee-wing')) {
+      const wg = this.make.graphics({ x: 0, y: 0 });
+      wg.fillStyle(0xF3E9D6, 0.92);
+      wg.fillEllipse(15, 8, 28, 14);
+      wg.lineStyle(1, 0x6E4A2E, 0.45);
+      wg.beginPath();
+      wg.moveTo(2, 8);
+      wg.lineTo(26, 6);
+      wg.moveTo(2, 8);
+      wg.lineTo(22, 11);
+      wg.strokePath();
+      wg.generateTexture('bee-wing', 30, 16);
+      wg.destroy();
+    }
+  }
+
+  private makeFlowerTexture(): void {
+    // Soft five-petal head (tinted per flower colour at runtime)
+    const f = this.make.graphics({ x: 0, y: 0 });
+    f.fillStyle(0xFFFFFF, 1);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      f.fillCircle(10 + Math.cos(a) * 5, 10 + Math.sin(a) * 5, 4.2);
+    }
+    f.generateTexture('petals', 20, 20);
+    f.destroy();
+  }
+
+  private makeGrainTexture(): void {
+    // Felt / paper grain: scattered specks, tiled across the world at low alpha.
+    const g = this.make.graphics({ x: 0, y: 0 });
+    const size = 256;
+    for (let i = 0; i < 2600; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const light = Math.random() > 0.5;
+      g.fillStyle(light ? 0xF3E9D6 : 0x000000, light ? 0.5 : 0.35);
+      g.fillRect(x, y, 1 + Math.random() * 1.5, 1);
+    }
+    g.generateTexture('grain', size, size);
+    g.destroy();
   }
 }

@@ -1,0 +1,4 @@
+{
+  "_readme": "Custom stop-motion art. Drop PNGs in this folder and list their file names below (see src/content/assets.ts for the key → file map and sizing guide). Anything not listed falls back to the procedural placeholder.",
+  "files": []
+}

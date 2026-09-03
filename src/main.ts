@@ -16,20 +16,18 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [BootScene, PreloadScene, WorldScene],
   physics: {
     default: 'arcade',
-    arcade: {
-      debug: false,
-    },
+    arcade: { debug: false },
   },
+  // Keep the canvas alive for a11y tooling; the world itself is described
+  // by the container's aria-label in index.html and by /static.html.
+  autoFocus: true,
 };
 
 const game = new Phaser.Game(config);
 
-// Handle resize
 window.addEventListener('resize', () => {
   game.scale.resize(window.innerWidth, window.innerHeight);
 });
 
-// Expose game globally for debugging
-(window as any).GAME = game;
-
-console.log('🐝 David Hynes Personal Site — GATE 0 scaffolded');
+// Expose for debugging in the console (e.g. GAME.scene.keys.WorldScene)
+(window as unknown as { GAME: Phaser.Game }).GAME = game;

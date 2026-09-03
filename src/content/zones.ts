@@ -87,7 +87,7 @@ export const zones: ZoneContent[] = [
       {
         heading: '**Sovereign Local Nodes**',
         text: 'Private AI for households, communities, and schools. The pitch in one line: "Most intelligence is rented. This isn\'t." On-site nodes, owner-defined constitutions, Orbital Governance (access, domain isolation, tool permissions, ethics), right-sized hardware, transparent pricing.',
-        items: ['[Contact for pilot info]']
+        items: [{ text: 'Contact for pilot info →', link: 'mailto:d.hynes.mnk@gmail.com?subject=Sovereign%20Local%20Nodes%20pilot' }]
       },
       {
         heading: '**The AI Playbook for Small Business in Australia**',
