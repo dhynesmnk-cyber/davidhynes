@@ -1,18 +1,16 @@
-# There is no build step. The site is served straight from the repo root:
-# index.html, styles.css, js/, vendor/ and assets/ are the deploy.
+# There is no build step in the usual sense: the site is plain ES modules.
+# The "build" just stages the files into dist/ so the publish directory is
+# an explicit, unambiguous folder rather than the repo root, and stamps the
+# commit into dist/build-info.txt so the live site can always be asked which
+# commit it is.
 #
-# This file exists mainly to override the build settings left in the Netlify
-# UI by the previous project (which ran `npm run build` and published `dist/`).
-# Settings in netlify.toml take precedence over the UI, so no dashboard change
-# is required — though clearing them there too would remove the confusion.
+# Publishing "dist" also matches the publish directory left in the Netlify UI
+# by the previous project, so this deploys correctly whether Netlify honours
+# this file or those settings.
 
 [build]
-  command = "echo 'No build step: static ES modules, served as-is.'"
-  publish = "."
-
-# Caching. Three.js and the fonts are content-stable and vendored, so they can
-# be cached hard; everything else stays short so a redeploy is picked up.
-# `_headers` says the same thing for hosts that read it instead of this file.
+  command = "bash ./build.sh"
+  publish = "dist"
 
 [[headers]]
   for = "/vendor/*"
@@ -38,3 +36,8 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/build-info.txt"
+  [headers.values]
+    Cache-Control = "no-store"
