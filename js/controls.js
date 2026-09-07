@@ -3,6 +3,13 @@ import { groundY, RIM } from './world.js';
 
 const clamp = THREE.MathUtils.clamp;
 
+/* Height above the terrain where the flowers are. The bee drifts back to it,
+   and the target lifts toward whichever flower is nearby so the tall ones
+   are not a fight to reach. */
+export const CRUISE_H = 5.0;
+/* How much of forward thrust goes into climb/dive when the view is pitched. */
+const PITCH_LIFT = 0.45;
+
 /* ------------------------------------------------------------------ input */
 export class Input {
   constructor(canvas, ui) {
@@ -169,6 +176,8 @@ export class Flight {
     this.obstacles = [];
     this.camDist = 7.4;
     this.frameScale = 1;   // portrait screens need more room to breathe
+    this.cruiseY = null;   // main sets this to a nearby flower's landing height
+    this._cruise = null;
     this.sideBias = 0;   // set by main: shifts the subject left when a card is beside it
   }
 
@@ -196,11 +205,13 @@ export class Flight {
     const f = this.forward(this._f), r = this.right(this._r);
     const acc = this._t.set(0, 0, 0);
     if (!this.landed) {
-      acc.addScaledVector(f, input.move.z * 34);
+      /* Thrust follows the view, but only weakly in Y: looking down should
+         angle the flight, not drop the bee out of the garden. */
+      acc.x += f.x * input.move.z * 34;
+      acc.z += f.z * input.move.z * 34;
+      acc.y += f.y * input.move.z * 34 * PITCH_LIFT;
       acc.addScaledVector(r, input.move.x * 25);
-      acc.y += input.move.y * 25;
-      /* no gravity and no drift: let go and the bee holds its altitude,
-         which is what makes this forgiving rather than fiddly */
+      acc.y += input.move.y * 26;
     }
 
     this.vel.addScaledVector(acc, dt);
@@ -215,6 +226,18 @@ export class Flight {
       this.pos.lerp(this.landed.landPos, Math.min(1, dt * 6));
       this.vel.multiplyScalar(0.8);
     } else {
+      /* Settle back to the height the garden lives at. Only when the player
+         is not asking for altitude, and slowly enough that it reads as the
+         bee finding its level rather than the camera being taken away. */
+      const target = this.cruiseY !== null
+        ? this.cruiseY
+        : groundY(this.pos.x, this.pos.z) + CRUISE_H;
+      if (this._cruise === null) this._cruise = target;
+      this._cruise += (target - this._cruise) * Math.min(1, dt * 1.6);
+      if (input.move.y === 0) {
+        const wantVY = clamp((this._cruise - this.pos.y) * 0.8, -4.5, 4.5);
+        this.vel.y += (wantVY - this.vel.y) * Math.min(1, dt * 2.2);
+      }
       this.pos.addScaledVector(this.vel, dt);
     }
 
@@ -224,7 +247,7 @@ export class Flight {
       const push = (gy - this.pos.y);
       this.pos.y += push * Math.min(1, dt * 12);
       if (this.vel.y < 0) this.vel.y *= 0.35;
-      this.vel.y += push * 5 * dt;
+      this.vel.y += push * 3 * dt;
     }
     if (this.pos.y > 52) { this.pos.y += (52 - this.pos.y) * Math.min(1, dt * 3); this.vel.y = Math.min(this.vel.y, 0); }
 

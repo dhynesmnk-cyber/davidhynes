@@ -5,6 +5,7 @@ import { buildWorld, groundY } from './world.js';
 import { Flower, buildHive } from './flowers.js';
 import { Bee } from './bee.js';
 import { Input, Flight, shortAngle } from './controls.js';
+import { Minimap } from './minimap.js';
 import { Tour } from './tour.js';
 import { AmbientLife } from './particles.js';
 import { Glow } from './glow.js';
@@ -66,7 +67,7 @@ const state = {
   frames: 0, acc: 0, slow: 0, downgraded: 0, timeScale: 1
 };
 
-let world, bee, flight, input, tour, life, glow, ui, audio;
+let world, bee, flight, input, tour, life, glow, ui, audio, minimap;
 const flowers = [];
 const byId = new Map();
 
@@ -114,6 +115,7 @@ const steps = [
     tour = new Tour(flight);
     audio = new GardenAudio();
     ui = new UI({ onClose: () => closePanel() });
+    minimap = new Minimap($('#map'), byId);
     ui.setPollen(0, TOTAL);
     $('#pollen-t').textContent = TOTAL;
     wireUI();
@@ -165,6 +167,7 @@ function applySize() {
   camera.updateProjectionMatrix();
   if (flight) flight.frameScale = aspect >= 1.3 ? 1 : aspect >= 0.95 ? 1.22 : 1.7;
   if (glow) glow.setSize(Math.floor(w * renderer.getPixelRatio()), Math.floor(h * renderer.getPixelRatio()));
+  if (minimap) minimap.resize();
 }
 addEventListener('resize', () => { clearTimeout(applySize._t); applySize._t = setTimeout(applySize, 120); });
 addEventListener('orientationchange', () => setTimeout(applySize, 260));
@@ -479,6 +482,9 @@ function loop(now) {
     f.update(dt, time, camera);
     if (d < nearestD) { nearestD = d; nearest = f; }
   }
+  /* The height the bee settles at bends toward whatever flower is close, so
+     the tall ones come to meet you instead of needing Space held down. */
+  flight.cruiseY = (nearest && nearestD < 20) ? nearest.landPos.y : null;
   if (state.hireFlower && state.hireFlower.group.scale.x < 1) {
     const s = Math.min(1, state.hireFlower.group.scale.x + dt * (REDUCED ? 1.6 : 0.32));
     state.hireFlower.group.scale.setScalar(s < 0.999 ? s : 1);
@@ -513,6 +519,7 @@ function loop(now) {
     if (Math.abs(u.value - want) > 0.001) u.value += (want - u.value) * Math.min(1, dt * 0.7);
   }
   life.update(dt, time, pollenCount(), REDUCED);
+  minimap.update(dt, flight, state.bloomed);
   bee.update(dt, time, { speed: st.speed, turnRate: st.turnRate, climb: st.climb, landed: !!flight.landed, reducedMotion: REDUCED });
   audio.setSpeed(st.speed);
 
@@ -590,7 +597,7 @@ function exposeDebug() {
       flight.pos.copy(f.landPos); flight.vel.set(0, 0, 0);
       flight.landOn(f); visit(f, false);
     },
-    state, flowers: byId, flight: () => flight, tour: () => tour, ui: () => ui
+    state, flowers: byId, flight: () => flight, tour: () => tour, ui: () => ui, groundY
   };
 }
 
