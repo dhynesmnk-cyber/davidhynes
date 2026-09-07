@@ -208,18 +208,50 @@ export class WorldScene extends Phaser.Scene {
   private createDioramaWorld(): void {
     const scale = settings.particleScale;
 
-    // Dusk gradient: deep plum, lighter toward the horizon (top)
-    const rows = 28;
-    const rowH = Math.ceil(WORLD_H / rows);
+    // Dusk gradient: deep plum, lighter toward the horizon (top). Dense rows
+    // (rather than a handful of wide bands) so the blend reads as a soft
+    // sky instead of visible stripes — a first pass at softer edges overall.
+    const rows = 180;
+    const rowH = WORLD_H / rows;
     for (let i = 0; i < rows; i++) {
       const t = i / rows;
-      const r = Math.round(58 + (36 - 58) * t);
-      const g = Math.round(43 + (26 - 43) * t);
-      const b = Math.round(85 + (56 - 85) * t);
-      this.add.rectangle(WORLD_W / 2, i * rowH, WORLD_W, rowH + 1, Phaser.Display.Color.GetColor(r, g, b))
+      let r = 58 + (36 - 58) * t;
+      let g = 43 + (26 - 43) * t;
+      let b = 85 + (56 - 85) * t;
+      // Sunlight wash: a warm gold bleeding down from the horizon.
+      const sun = Math.max(0, 1 - t / 0.34);
+      const sunFalloff = sun * sun;
+      r += 88 * sunFalloff;
+      g += 46 * sunFalloff;
+      b -= 12 * sunFalloff;
+      // Cool glowwave seam hugging the horizon line itself.
+      const wave = Math.max(0, 1 - t / 0.05);
+      r += (95 - r) * wave * 0.45;
+      g += (227 - g) * wave * 0.45;
+      b += (221 - b) * wave * 0.45;
+      const color = Phaser.Display.Color.GetColor(
+        Phaser.Math.Clamp(Math.round(r), 0, 255),
+        Phaser.Math.Clamp(Math.round(g), 0, 255),
+        Phaser.Math.Clamp(Math.round(b), 0, 255),
+      );
+      this.add.rectangle(WORLD_W / 2, i * rowH, WORLD_W, rowH + 1, color)
         .setOrigin(0.5, 0)
         .setDepth(0);
     }
+
+    // Soft sun glow, low over the north hill, breathing gently.
+    const sunGlow = this.add.circle(1000, 30, 260, 0xFFD08A, 0.16).setDepth(0);
+    if (settings.qualityTier !== 'low') sunGlow.setBlendMode(Phaser.BlendModes.ADD);
+    this.glowTweens.push(this.tweens.add({
+      targets: sunGlow, alpha: 0.24, scale: 1.06, duration: 4200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    }));
+
+    // Glowwave horizon: a thin neon-cyan seam where sky meets the far hills.
+    const horizonGlow = this.add.rectangle(WORLD_W / 2, 4, WORLD_W, 14, C.cyan, 0.3).setOrigin(0.5, 0).setDepth(1);
+    if (settings.qualityTier !== 'low') horizonGlow.setBlendMode(Phaser.BlendModes.ADD);
+    this.glowTweens.push(this.tweens.add({
+      targets: horizonGlow, alpha: 0.5, duration: 3000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    }));
 
     // Raised felt hills
     const hills = [
