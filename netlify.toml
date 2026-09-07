@@ -1,0 +1,40 @@
+# There is no build step. The site is served straight from the repo root:
+# index.html, styles.css, js/, vendor/ and assets/ are the deploy.
+#
+# This file exists mainly to override the build settings left in the Netlify
+# UI by the previous project (which ran `npm run build` and published `dist/`).
+# Settings in netlify.toml take precedence over the UI, so no dashboard change
+# is required — though clearing them there too would remove the confusion.
+
+[build]
+  command = "echo 'No build step: static ES modules, served as-is.'"
+  publish = "."
+
+# Caching. Three.js and the fonts are content-stable and vendored, so they can
+# be cached hard; everything else stays short so a redeploy is picked up.
+# `_headers` says the same thing for hosts that read it instead of this file.
+
+[[headers]]
+  for = "/vendor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=600"
+
+[[headers]]
+  for = "/styles.css"
+  [headers.values]
+    Cache-Control = "public, max-age=600"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=300"
