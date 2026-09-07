@@ -7,6 +7,9 @@ blooms it, and colour bleeds outward from what you have found.
 A full text version of the same content lives in the page from the first byte,
 behind a **Read as text** toggle that is visible on every frame.
 
+Picking this up mid-stream? Read `HANDOVER.md` first — it covers the deploy
+trap, the environment limits, and what is deliberately the way it is.
+
 ## Running it
 
 There is no build step. Serve the directory over HTTP:
@@ -21,11 +24,15 @@ ES modules.
 
 ## Hosting
 
-Upload the whole directory to any static host — Netlify, Cloudflare Pages,
-GitHub Pages, S3, nginx. Nothing needs a server, a database, or a build.
-`_headers` sets long cache lifetimes for the vendored library and fonts and
-short ones for the rest; Netlify and Cloudflare Pages both read it, other hosts
-ignore it harmlessly.
+`bash build.sh` stages the site into `dist/`; upload that to any static host —
+Netlify, Cloudflare Pages, GitHub Pages, S3, nginx. Nothing needs a server, a
+database, or a real build. `_headers` sets long cache lifetimes for the
+vendored library and fonts and short ones for the rest; Netlify and Cloudflare
+Pages both read it, other hosts ignore it harmlessly.
+
+Every deploy writes `/build-info.txt` with the commit it came from. That is
+the quickest way to confirm what a host is actually serving — see
+`HANDOVER.md` for why that turned out to matter.
 
 Drop the real CV at `/cv.pdf` in the site root. Every download button already
 points there.
@@ -46,7 +53,10 @@ js/particles.js pollen, fireflies, butterflies, the bloom wave
 js/glow.js      selective bloom: only emissive elements go through it
 js/audio.js     procedural ambience, chimes and wing hum. No audio files
 js/ui.js        panel rendering and the HUD
+js/minimap.js   the corner chart of the garden
 js/main.js      wiring, quality budget, the render loop
+build.sh        stages the site into dist/ for deployment
+tests/          Playwright checks, dev only, never shipped
 vendor/         three.js r169, vendored so nothing is fetched from a CDN
 ```
 
