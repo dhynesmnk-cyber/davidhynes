@@ -24,10 +24,15 @@ export class Bee extends Phaser.GameObjects.Container {
   private frame = 0;
   private jitterSeed = Math.random() * 1000;
   private interactLean = 0;
+  /** Eased toward the target resting height each logic frame — the bee
+   * rises/settles into a consistent height instead of snapping to it. */
+  private baseY = 0;
 
   private readonly WALK_FPS = 10;
   private readonly FLY_FPS = 12;
   private readonly JITTER_DEG = 1.5;
+  private readonly FLY_HEIGHT = -10;
+  private readonly SETTLE_RATE = 0.3;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
@@ -70,16 +75,18 @@ export class Bee extends Phaser.GameObjects.Container {
     this.isFlying = flying;
     this.frameAccumulator = 0;
     this.frame = 0;
-    // Squash-and-stretch on takeoff / landing: snapped, not tweened.
+    // Squash-and-stretch on takeoff / landing: snapped, not tweened. The
+    // height itself is NOT snapped here — `baseY` eases toward the new
+    // resting height in `update()` so the bee rises/settles smoothly
+    // instead of popping straight to it.
     const puppet = this.puppet;
     const shadow = this.getByName('shadow') as Phaser.GameObjects.Ellipse;
     if (flying) {
       puppet.setScale(0.9, 1.15);
       this.scene.time.delayedCall(90, () => puppet.setScale(1.05, 0.95));
-      this.scene.time.delayedCall(180, () => { puppet.setScale(1, 1); puppet.y = -10; });
+      this.scene.time.delayedCall(180, () => puppet.setScale(1, 1));
       shadow.setScale(0.7).setAlpha(0.12);
     } else {
-      puppet.y = 0;
       puppet.setScale(1.15, 0.85);
       this.scene.time.delayedCall(90, () => puppet.setScale(0.95, 1.05));
       this.scene.time.delayedCall(180, () => puppet.setScale(1, 1));
@@ -104,6 +111,12 @@ export class Bee extends Phaser.GameObjects.Container {
     let bodyRotation = 0;
     let wiggle = 0;
 
+    // Ease the resting height toward its target each logic frame — the bee
+    // approaches every set piece at the same settled height, rising or
+    // sinking into it gradually instead of popping straight there.
+    const targetBaseY = this.isFlying ? this.FLY_HEIGHT : 0;
+    this.baseY += (targetBaseY - this.baseY) * (reduced ? 1 : this.SETTLE_RATE);
+
     if (this.isFlying) {
       // Wing flutter: 2 frames up, 2 frames down at the snap rate.
       const up = this.frame < 2;
@@ -111,8 +124,8 @@ export class Bee extends Phaser.GameObjects.Container {
       this.wingBack.setRotation(Phaser.Math.DegToRad(up ? -12 : -42));
       // Body tilts into movement.
       if (moving) bodyRotation = Phaser.Math.DegToRad(direction.x * 10 + direction.y * -4);
-      // Slight hover bob
-      this.puppet.y = -10 + (this.frame % 2 === 0 ? -1 : 1);
+      // Slight hover bob on top of the settled height
+      this.puppet.y = this.baseY + (this.frame % 2 === 0 ? -1 : 1);
       if (this.abdomen) this.abdomen.setRotation(Phaser.Math.DegToRad(this.frame % 2 === 0 ? 2 : -2));
       this.drawLegs(2);
     } else {
@@ -126,12 +139,12 @@ export class Bee extends Phaser.GameObjects.Container {
         wiggle = swing * 14;
         // Legs scuttle on alternate frames; body bobs with the step.
         this.drawLegs(this.frame % 2);
-        this.puppet.y = this.frame % 2 === 0 ? -1 : 0;
+        this.puppet.y = this.baseY + (this.frame % 2 === 0 ? -1 : 0);
       } else {
         // Idle: slow bob, occasional antenna twitch
         const t = this.scene.time.now * 0.002;
         wiggle = Math.sin(t) * 3;
-        this.puppet.y = 0;
+        this.puppet.y = this.baseY;
         this.drawLegs(0);
         this.drawAntennae(Math.random() < 0.12 ? 1 : 0);
       }
