@@ -61,6 +61,14 @@ canvas#scene.grabbing { cursor: grabbing; }
 body.text-mode #world { display: none !important; }
 body.text-mode #stage { display: none; }
 
+/* Softens the screen edges, like a diorama seen through a lens rather than
+   a flat render — sits above the canvas, below all chrome. */
+#vignette {
+  position: fixed; inset: 0; z-index: 5; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(7, 9, 22, 0) 55%, rgba(4, 5, 14, .55) 100%);
+}
+body.text-mode #vignette { display: none; }
+
 button { font: inherit; color: inherit; }
 
 /* ------------------------------------------------------------------ chrome */
@@ -124,6 +132,9 @@ button { font: inherit; color: inherit; }
 #tour-btn.running { border-color: rgba(53, 240, 255, .65); box-shadow: 0 6px 26px rgba(53, 240, 255, .25); }
 
 /* -------------------------------------------------------------- the panel */
+/* Docked to a fixed left column on desktop (see below) rather than chasing
+   the flower it describes — it used to sit right beside the subject and
+   cover part of what it was explaining. */
 #panel {
   position: absolute; width: min(392px, calc(100vw - 28px));
   font-family: var(--doc);
@@ -143,12 +154,18 @@ button { font: inherit; color: inherit; }
 #panel::-webkit-scrollbar { width: 6px; }
 #panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .2); border-radius: 3px; }
 
-/* the stem: ties the card back to its flower */
-#panel::after {
-  content: ''; position: absolute; left: var(--stem-x, 50%); bottom: -1px;
-  width: 1px; height: var(--stem-h, 0px);
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--accent) 55%, transparent), transparent);
-  transform: translateY(100%); pointer-events: none;
+/* Larger, fixed to the left, vertically centred — big enough to read
+   comfortably while leaving the right two-thirds of the diorama clear. The
+   camera biases the subject toward the right to match (see sideBias). */
+@media (min-width: 721px) and (pointer: fine) {
+  #panel {
+    left: clamp(20px, 4vw, 64px); right: auto;
+    top: 50%; bottom: auto;
+    width: min(30vw, 460px);
+    max-height: min(80vh, 660px);
+    transform: translateY(calc(-50% + 10px)) scale(.97);
+  }
+  #panel.show { transform: translateY(-50%) scale(1); }
 }
 
 .p-kicker {
@@ -226,7 +243,6 @@ button { font: inherit; color: inherit; }
     max-height: min(50vh, calc(100vh - 300px - var(--safe-t) - var(--safe-b)));
     padding: 15px 15px 14px;
   }
-  #panel::after { display: none; }
   #panel h2 { font-size: 20px; }
 
 }

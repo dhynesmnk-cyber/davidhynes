@@ -384,7 +384,6 @@ function setTextMode(on) {
 
 /* ------------------------------------------------------------- main loop */
 let running = false, last = 0, time = 0;
-const proj = new THREE.Vector3();
 
 function loop(now) {
   if (!running) return;
@@ -394,7 +393,7 @@ function loop(now) {
   const dt = Math.min(raw, 1 / 20) * state.timeScale;
   time += dt;
   shared.uTime.value = time;
-  flight.sideBias = (IS_TOUCH || window.innerWidth <= 720) ? 0 : 2.2;
+  flight.sideBias = (IS_TOUCH || window.innerWidth <= 720) ? 0 : -2.2;
 
   /* adaptive quality: two steps down, never back up mid-session */
   state.acc += raw; state.frames++;
@@ -522,13 +521,6 @@ function loop(now) {
   minimap.update(dt, flight, state.bloomed);
   bee.update(dt, time, { speed: st.speed, turnRate: st.turnRate, climb: st.climb, landed: !!flight.landed, reducedMotion: REDUCED });
   audio.setSpeed(st.speed);
-
-  /* --- panel anchoring ---------------------------------------------- */
-  if (state.panelFor) {
-    proj.copy(state.panelFor.anchor).project(camera);
-    const w = window.innerWidth, h = window.innerHeight;
-    ui.place((proj.x * 0.5 + 0.5) * w, (-proj.y * 0.5 + 0.5) * h, w, h);
-  }
 
   /* --- render ------------------------------------------------------- */
   world.sky.position.copy(camera.position);

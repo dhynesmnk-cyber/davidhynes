@@ -69,24 +69,10 @@ export class UI {
     return h;
   }
 
-  /* Anchor the card near its flower on desktop; CSS docks it on phones. */
-  place(x, y, w, hgt) {
-    if (this.isTouch || window.innerWidth <= 720) return;
-    const p = this.panel;
-    const pw = p.offsetWidth, ph = p.offsetHeight;
-    let left = x + 46;
-    if (left + pw > w - 16) left = x - pw - 46;
-    left = Math.max(16, Math.min(left, w - pw - 16));
-    let top = y - ph * 0.55;
-    top = Math.max(70, Math.min(top, hgt - ph - 78));
-    p.style.left = left + 'px';
-    p.style.top = top + 'px';
-    p.style.right = 'auto';
-    p.style.bottom = 'auto';
-    const sx = Math.max(10, Math.min(pw - 10, x - left));
-    p.style.setProperty('--stem-x', sx + 'px');
-    p.style.setProperty('--stem-h', Math.max(0, Math.min(220, y - (top + ph))) + 'px');
-  }
+  /* Positioning is CSS-driven now: a fixed left dock on desktop, a fixed
+     top strip on phones (see styles.css). The camera frames the subject
+     toward the right to match, so the card never covers it. */
+  place() {}
 
   /* ------------------------------------------------------------- hints */
   hint(text, ms = 4200) {

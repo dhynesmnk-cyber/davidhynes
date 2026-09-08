@@ -178,7 +178,7 @@ export class Flight {
     this.frameScale = 1;   // portrait screens need more room to breathe
     this.cruiseY = null;   // main sets this to a nearby flower's landing height
     this._cruise = null;
-    this.sideBias = 0;   // set by main: shifts the subject left when a card is beside it
+    this.sideBias = 0;   // set by main: shifts the subject right, clear of the card docked on the left
   }
 
   spawn(x, y, z, yaw) {

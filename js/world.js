@@ -168,18 +168,26 @@ export function buildWorld(scene, quality) {
         float az = atan(d.z, d.x);
 
         /* Not the purple-to-blue gradient every "wave" thing lands on:
-           ink-teal overhead, violet through the body, a narrow teal band
-           sitting on the horizon, and only a sliver of ember beneath it. */
+           ink-teal overhead, violet through the body, a wide cool glowwave
+           band sitting on the horizon with warm sunlight bleeding through
+           it, and a sliver of ember beneath. */
         vec3 zenith = mix(vec3(0.018, 0.040, 0.072), vec3(0.026, 0.052, 0.100), uGlobal);
         vec3 mid    = mix(vec3(0.062, 0.052, 0.132), vec3(0.098, 0.070, 0.196), uGlobal);
         vec3 low    = mix(vec3(0.100, 0.082, 0.168), vec3(0.138, 0.102, 0.212), uGlobal);
-        vec3 teal   = mix(vec3(0.045, 0.115, 0.142), vec3(0.070, 0.190, 0.212), uGlobal);
+        vec3 teal   = mix(vec3(0.058, 0.150, 0.184), vec3(0.088, 0.230, 0.252), uGlobal);
         vec3 ember  = mix(vec3(0.175, 0.104, 0.110), vec3(0.300, 0.168, 0.152), uGlobal);
+        vec3 sun    = mix(vec3(0.220, 0.140, 0.062), vec3(0.340, 0.220, 0.100), uGlobal);
 
         vec3 col = mix(mid, zenith, smoothstep(0.12, 0.92, y));
         col = mix(col, low, smoothstep(0.30, 0.02, y));
-        col = mix(col, teal, smoothstep(0.20, 0.02, y) * 0.62);
-        col = mix(col, ember, smoothstep(0.030, -0.12, y) * 0.72);
+        col = mix(col, teal, smoothstep(0.26, 0.015, y) * 0.85);
+        col = mix(col, ember, smoothstep(0.030, -0.12, y) * 0.80);
+
+        /* sunlight: a soft warm wash that peaks just above the horizon and
+           bleeds through the cool band rather than replacing it */
+        float sunAmt = clamp(1.0 - abs(y - 0.015) / 0.30, 0.0, 1.0);
+        sunAmt *= sunAmt;
+        col += sun * sunAmt * 0.50;
 
         /* a slow wash so the upper half is never dead flat */
         float band = sin(y * 5.0 + az * 0.7 + uTime * 0.035) * 0.5 + 0.5;
