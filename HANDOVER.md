@@ -1,7 +1,15 @@
 # Handover
 
-State as of commit `0f7fbbd`, branch `claude/3d-resume-garden-7hizyy`,
-PR [#2](https://github.com/dhynesmnk-cyber/davidhynes/pull/2) — open, green, mergeable.
+**Shipped.** PR [#2](https://github.com/dhynesmnk-cyber/davidhynes/pull/2) merged
+into `main` as `cca2e57` on 2026-09-08. A parallel session's polish work
+(PR #3) merged first and was brought in through `68bc1fc`, which resolved
+conflicts in `index.html`. Both are in `main`, and the full suite passes
+against the merged result.
+
+That parallel work changed one thing described below: the content panel is no
+longer positioned per-flower in JS. It is a fixed left dock on desktop (CSS),
+and the camera biases the subject to the right to match — `ui.place()` is now
+an intentional no-op and `flight.sideBias` is negative.
 
 ## Where things stand
 
@@ -14,10 +22,11 @@ toggle for anyone who does not want a game.
 Everything asked for is built and working. The deploy preview is confirmed
 serving the current build.
 
-**Verified:** all thirty checks in `tests/suite.js` pass — flight, the guided
-tour reaching all seven sections in order, the text escape hatch, audio being
-opt-in, the completion sequence and reward flower, resize survival, phone
-control layout, and tab-visibility pausing. No console errors in any scenario.
+**Verified:** all thirty checks in `tests/suite.js` pass against merged
+`main` — flight, the guided tour reaching all seven sections, the text escape
+hatch, audio being opt-in, the completion sequence and reward flower, resize
+survival, phone control layout, and tab-visibility pausing. No console errors
+in any scenario.
 
 **Not verified:** how it looks and feels on real GPU hardware. Every
 screenshot in this project came from a software rasteriser at roughly two
@@ -126,15 +135,14 @@ rendering the old site proved the server, not the browser cache, was at fault.
 
 ## Open items
 
-1. **Merge PR #2.** Production builds from `main`, which is still the old
-   site. Nothing reaches the live domain until this merges. Deliberately left
-   for the owner — it publishes to their personal site.
+1. **Confirm production.** `main` now carries the site, so the live domain
+   should be serving it. Fetch `/build-info.txt` on the production host and
+   check the commit matches `main`. This was never verified from a session —
+   see the egress note above.
 2. **Unblock the two Netlify hostnames** so a session can verify the live
    page rather than a local server.
-3. **Supply `/cv.pdf`.**
-4. The PR description still says it removed `netlify.toml`, which was true
-   when the PR opened and is no longer. Left alone rather than editing the
-   owner's text.
+3. **Supply `/cv.pdf`.** Every download button points there and 404s until
+   the file exists. This is the most visible loose end for a real visitor.
 
 ## Known weaknesses, in the order worth fixing
 

@@ -62,19 +62,23 @@ const wait = (p, ms) => p.waitForTimeout(ms);
       window.__gardenDebug.tour().dwell = 2;
     });
     await p.click('#tour-btn');
-    const seen = new Set();
     let ended = false;
-    for (let i = 0; i < 90; i++) {
-      await wait(p, 1000);
-      const st = await p.evaluate(() => {
-        const t = window.__gardenDebug.tour();
-        return { active: t.active, cur: t.current && t.current.id };
-      });
-      if (st.cur) seen.add(st.cur);
-      if (!st.active) { ended = true; break; }
+    /* 180 x 500ms = 90s of wall clock. The tour needs about 40s of that on
+       a software rasteriser; the rest is headroom for a slower machine. */
+    for (let i = 0; i < 180; i++) {
+      await wait(p, 500);
+      if (!await p.evaluate(() => window.__gardenDebug.tour().active)) { ended = true; break; }
     }
     check('tour ends on its own', ended);
-    check('tour visits all seven sections', seen.size === 7, [...seen].join(','));
+
+    /* Assert on state.bloomed, not on sampled tour.current: only visit()
+       writes to it, and during a tour visit() runs solely from onArrive.
+       Polling for the current stop can miss a short dwell and report a
+       failure the run itself disproves. */
+    const reached = await p.evaluate(() => [...window.__gardenDebug.state.bloomed]);
+    const want = ['hive', 'work', 'toolkit', 'method', 'projects', 'background', 'writing'];
+    const missed = want.filter(id => !reached.includes(id));
+    check('tour reaches all seven sections', missed.length === 0, 'missed ' + missed.join(','));
     check('tour blooms the garden',
       await p.evaluate(() => document.querySelector('#pollen-n').textContent) === '7');
     await p.context().close();
