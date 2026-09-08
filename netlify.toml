@@ -1,20 +1,43 @@
+# There is no build step in the usual sense: the site is plain ES modules.
+# The "build" just stages the files into dist/ so the publish directory is
+# an explicit, unambiguous folder rather than the repo root, and stamps the
+# commit into dist/build-info.txt so the live site can always be asked which
+# commit it is.
+#
+# Publishing "dist" also matches the publish directory left in the Netlify UI
+# by the previous project, so this deploys correctly whether Netlify honours
+# this file or those settings.
+
 [build]
-  command = "npm run build"
+  command = "bash ./build.sh"
   publish = "dist"
 
-# Plain-text "skip the garden" view (FR-7). Existing files are served
-# before redirects, so /static.html works directly; this covers /static.
-[[redirects]]
-  from = "/static"
-  to = "/static.html"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
 [[headers]]
-  for = "/assets/*"
+  for = "/vendor/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=600"
+
+[[headers]]
+  for = "/styles.css"
+  [headers.values]
+    Cache-Control = "public, max-age=600"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/build-info.txt"
+  [headers.values]
+    Cache-Control = "no-store"

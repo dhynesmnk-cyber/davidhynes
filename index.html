@@ -1,328 +1,219 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>David Hynes — AI Enablement &amp; Responsible AI</title>
-    <meta name="description" content="David Hynes, Melbourne. AI enablement consultant and author of The AI Playbook for Small Business in Australia. Explore the garden, or skip straight to the plain-text version." />
-    <meta name="theme-color" content="#241A38" />
-    <meta name="author" content="David Hynes" />
-    <link rel="canonical" href="%SITE_URL%/" />
-    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<title>David Hynes — AI Enablement · a garden you can fly through</title>
+<meta name="description" content="David Hynes, AI enablement consultant in Melbourne. An interactive resume you fly through as a bee, with a full text version for anyone in a hurry.">
+<meta name="theme-color" content="#070a18">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="assets/favicon-garden.svg" type="image/svg+xml">
+<meta property="og:type" content="profile">
+<meta property="og:title" content="David Hynes — AI Enablement">
+<meta property="og:description" content="An interactive resume: a bee, a garden, and the work. Text version included.">
+<link rel="preload" href="assets/fonts/Nunito-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="vendor/three.module.js">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
 
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="David Hynes" />
-    <meta property="og:title" content="David Hynes — AI Enablement &amp; Responsible AI" />
-    <meta property="og:description" content="An explorable stop-motion garden. Walk the bee to each set piece to read the work — or skip the garden for the plain-text version." />
-    <meta property="og:url" content="%SITE_URL%/" />
-    <meta property="og:image" content="%SITE_URL%/assets/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="A felt diorama garden at neon dusk with a small bee mid-flight. Text: David Hynes, AI Enablement &amp; Responsible AI." />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="David Hynes — AI Enablement &amp; Responsible AI" />
-    <meta name="twitter:description" content="An explorable stop-motion garden. Walk the bee to each set piece to read the work." />
-    <meta name="twitter:image" content="%SITE_URL%/assets/og-image.png" />
+<a class="skip" href="#text-resume" id="skip-link">Skip to the text resume</a>
 
-    <link rel="preload" href="/assets/fonts/Caveat-700.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/assets/fonts/Nunito-variable.woff2" as="font" type="font/woff2" crossorigin />
+<!-- ==================================================== the 3D experience -->
+<div id="world">
+  <canvas id="scene" aria-label="An interactive garden. Use the text version below for the same content." role="img"></canvas>
+  <div id="vignette" aria-hidden="true"></div>
 
-    <style>
-      @font-face {
-        font-family: 'Caveat';
-        font-style: normal;
-        font-weight: 700;
-        font-display: swap;
-        src: url('/assets/fonts/Caveat-700.woff2') format('woff2');
-      }
-      @font-face {
-        font-family: 'Nunito';
-        font-style: normal;
-        font-weight: 200 1000;
-        font-display: swap;
-        src: url('/assets/fonts/Nunito-variable.woff2') format('woff2');
-      }
+  <div id="stage">
+    <div class="bar">
+      <div class="brand"><b>David Hynes</b><span>AI Enablement · Melbourne</span></div>
+      <div class="spacer"></div>
+      <div class="pollen" id="pollen" aria-live="polite"><i></i>Pollen <b><span id="pollen-n">0</span>/<span id="pollen-t">7</span></b></div>
+      <button class="btn" id="text-btn" type="button">Read as text</button>
+      <button class="btn icon" id="sound-btn" type="button" aria-pressed="false" title="Sound is off" aria-label="Sound is off. Turn sound on">♪</button>
+    </div>
 
-      :root {
-        --dusk: #241A38;
-        --dusk-mid: #3A2B55;
-        --felt: #C97B3D;
-        --felt-dark: #6E4A2E;
-        --pink: #FF6FB0;
-        --cyan: #5FE3DD;
-        --violet: #A78BFA;
-        --violet-deep: #6B4FCF;
-        --paper: #F3E9D6;
-        --ink: #241A38;
-        --hand: 'Caveat', 'Chalkboard SE', 'Comic Sans MS', cursive;
-        --body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
-      }
+    <div id="map-wrap" aria-hidden="true">
+      <canvas id="map" width="116" height="116"></canvas>
+    </div>
 
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body {
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background: var(--dusk);
-        color: var(--paper);
-        font-family: var(--body);
-        touch-action: none;
-        -webkit-tap-highlight-color: transparent;
-      }
-      #garden-main, #game-container { width: 100%; height: 100%; display: block; }
-      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-      canvas { display: block; margin: 0 auto; }
+    <button class="btn" id="tour-btn" type="button">Take me on a tour</button>
+    <div id="hint" role="status"></div>
 
-      /* ---- Vignette: softens the screen edges, like a photographed set -- */
-      #vignette {
-        position: fixed;
-        inset: 0;
-        z-index: 400;
-        pointer-events: none;
-        background: radial-gradient(ellipse at center, rgba(36, 26, 56, 0) 52%, rgba(18, 12, 30, 0.5) 100%);
-      }
+    <div id="touch">
+      <div id="stick-zone"></div>
+      <div id="look-zone"></div>
+      <div id="stick"><div id="knob"></div></div>
+      <div class="alt" id="alt-up" aria-hidden="true">▲</div>
+      <div class="alt" id="alt-down" aria-hidden="true">▼</div>
+    </div>
 
-      /* ---- Skip link (a11y) ------------------------------------------ */
-      .skip-link {
-        position: absolute;
-        top: -60px;
-        left: 12px;
-        background: var(--paper);
-        color: var(--ink);
-        padding: 10px 16px;
-        border-radius: 6px;
-        z-index: 10001;
-        text-decoration: none;
-        font-weight: 700;
-        transition: top 0.15s ease;
-      }
-      .skip-link:focus { top: 12px; outline: 3px solid var(--cyan); }
+    <article id="panel" role="region" aria-live="polite" aria-labelledby="panel-title" aria-hidden="true"></article>
+  </div>
 
-      /* ---- Persistent controls --------------------------------------- */
-      #garden-controls {
-        position: fixed;
-        top: max(12px, env(safe-area-inset-top));
-        right: max(12px, env(safe-area-inset-right));
-        z-index: 9000;
-        display: flex;
-        gap: 8px;
-      }
-      #mute-toggle {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        border: 2px solid var(--felt-dark);
-        background: rgba(243, 233, 214, 0.92);
-        color: var(--ink);
-        cursor: pointer;
-        display: grid;
-        place-items: center;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
-        transform: rotate(-3deg);
-      }
-      #mute-toggle:hover { background: var(--paper); }
-      #mute-toggle:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
-      #mute-toggle[aria-pressed="true"] { opacity: 0.7; }
-
-      #skip-garden {
-        position: fixed;
-        bottom: max(10px, env(safe-area-inset-bottom));
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 9000;
-        color: var(--paper);
-        background: rgba(36, 26, 56, 0.82);
-        border-radius: 999px;
-        font-size: 13px;
-        font-weight: 700;
-        text-decoration: underline;
-        text-underline-offset: 3px;
-        padding: 6px 14px;
-        white-space: nowrap;
-      }
-      #skip-garden:hover, #skip-garden:focus-visible { background: var(--dusk); outline: 2px solid var(--cyan); }
-
-      /* ---- Onboarding hint (FR-5) ------------------------------------ */
-      #onboarding-hint {
-        position: fixed;
-        left: 50%;
-        top: calc(50% + 64px);
-        transform: translate(-50%, 8px) rotate(-2deg);
-        background: var(--paper);
-        color: var(--ink);
-        font-family: var(--hand);
-        font-size: 22px;
-        line-height: 1.1;
-        text-align: center;
-        padding: 10px 18px 12px;
-        border-radius: 3px;
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-        clip-path: polygon(0 4%, 3% 0, 97% 2%, 100% 8%, 99% 94%, 96% 100%, 4% 98%, 0 92%);
-        opacity: 0;
-        transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
-        pointer-events: none;
-        z-index: 9000;
-        max-width: 80vw;
-      }
-      #onboarding-hint small { display: block; font-family: var(--body); font-size: 12px; font-weight: 700; opacity: 0.7; margin-top: 4px; letter-spacing: 0.02em; }
-      #onboarding-hint.is-visible { opacity: 1; transform: translate(-50%, 0) rotate(-2deg); }
-      #onboarding-hint.is-fading { opacity: 0; transform: translate(-50%, -14px) rotate(-1deg); }
-
-      /* ---- Modal (FR-3) ---------------------------------------------- */
-      #modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(36, 26, 56, 0.72);
-        backdrop-filter: blur(3px);
-        -webkit-backdrop-filter: blur(3px);
-        z-index: 9999;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-      }
-      #modal-overlay.is-open { opacity: 1; }
-
-      #zone-modal {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) scale(0.96) rotate(0.4deg);
-        width: min(92vw, 680px);
-        max-height: 86vh;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        background: var(--paper);
-        color: var(--ink);
-        border-radius: 6px;
-        box-shadow: 0 24px 60px rgba(20, 10, 40, 0.55), 0 0 0 1px rgba(110, 74, 46, 0.25);
-        z-index: 10000;
-        opacity: 0;
-        transition: opacity 0.3s cubic-bezier(0.33, 1, 0.68, 1), transform 0.3s cubic-bezier(0.33, 1, 0.68, 1);
-        clip-path: polygon(0% 1%, 2% 0%, 4% 1%, 6% 0%, 8% 1%, 10% 0%, 12% 1%, 14% 0%, 16% 1%, 18% 0%, 20% 1%, 22% 0%, 24% 1%, 26% 0%, 28% 1%, 30% 0%, 32% 1%, 34% 0%, 36% 1%, 38% 0%, 40% 1%, 42% 0%, 44% 1%, 46% 0%, 48% 1%, 50% 0%, 52% 1%, 54% 0%, 56% 1%, 58% 0%, 60% 1%, 62% 0%, 64% 1%, 66% 0%, 68% 1%, 70% 0%, 72% 1%, 74% 0%, 76% 1%, 78% 0%, 80% 1%, 82% 0%, 84% 1%, 86% 0%, 88% 1%, 90% 0%, 92% 1%, 94% 0%, 96% 1%, 98% 0%, 100% 1%, 100% 99%, 98% 100%, 96% 99%, 94% 100%, 92% 99%, 90% 100%, 88% 99%, 86% 100%, 84% 99%, 82% 100%, 80% 99%, 78% 100%, 76% 99%, 74% 100%, 72% 99%, 70% 100%, 68% 99%, 66% 100%, 64% 99%, 62% 100%, 60% 99%, 58% 100%, 56% 99%, 54% 100%, 52% 99%, 50% 100%, 48% 99%, 46% 100%, 44% 99%, 42% 100%, 40% 99%, 38% 100%, 36% 99%, 34% 100%, 32% 99%, 30% 100%, 28% 99%, 26% 100%, 24% 99%, 22% 100%, 20% 99%, 18% 100%, 16% 99%, 14% 100%, 12% 99%, 10% 100%, 8% 99%, 6% 100%, 4% 99%, 2% 100%, 0% 99%);
-        font-size: 15px;
-        line-height: 1.6;
-      }
-      #zone-modal.is-open { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-      .modal-content { padding: 28px 36px 26px; }
-      @media (max-width: 480px) { .modal-content { padding: 22px 20px 20px; } }
-
-      /* On desktop, dock the card to the left and make it larger — centred
-         it used to sit right on top of the diorama it's explaining. */
-      @media (min-width: 900px) {
-        #zone-modal {
-          left: clamp(24px, 4vw, 64px);
-          top: 50%;
-          transform: translate(0, -50%) scale(0.96) rotate(0.4deg);
-          width: min(46vw, 640px);
-          max-height: 88vh;
-        }
-        #zone-modal.is-open { transform: translate(0, -50%) scale(1) rotate(0deg); }
-      }
-
-      .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-        border-bottom: 3px solid var(--violet);
-        padding-bottom: 12px;
-        margin-bottom: 18px;
-      }
-      .modal-header h2 {
-        font-family: var(--hand);
-        font-size: 36px;
-        line-height: 1;
-        font-weight: 700;
-        color: var(--ink);
-      }
-      .modal-x {
-        flex: none;
-        width: 40px;
-        height: 40px;
-        border: none;
-        border-radius: 50%;
-        background: transparent;
-        color: var(--felt-dark);
-        font-size: 30px;
-        line-height: 1;
-        cursor: pointer;
-      }
-      .modal-x:hover { background: rgba(110, 74, 46, 0.12); }
-      .modal-x:focus-visible, .modal-close:focus-visible, #zone-modal a:focus-visible {
-        outline: 3px solid var(--violet-deep);
-        outline-offset: 2px;
-        border-radius: 4px;
-      }
-
-      .modal-intro {
-        font-family: var(--hand);
-        font-size: 24px;
-        line-height: 1.2;
-        color: var(--felt-dark);
-        border-left: 4px solid var(--pink);
-        padding-left: 14px;
-        margin-bottom: 22px;
-      }
-      .modal-sign { font-family: var(--hand); font-size: 24px; text-align: right; color: var(--felt-dark); margin: -10px 0 18px; }
-
-      .modal-pro h3 {
-        font-size: 14px;
-        font-weight: 800;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: var(--ink);
-        margin: 20px 0 8px;
-      }
-      .modal-pro h3:first-child { margin-top: 0; }
-      .modal-pro p { margin: 0 0 12px; }
-      .modal-pro ul { margin: 0 0 12px; padding-left: 20px; }
-      .modal-pro li { margin: 6px 0; }
-      #zone-modal a { color: var(--violet-deep); font-weight: 700; text-decoration: none; }
-      #zone-modal a:hover { text-decoration: underline; }
-
-      .modal-footer { border-top: 2px solid var(--violet); padding-top: 16px; margin-top: 24px; }
-      .contact-block { font-style: normal; font-size: 14px; color: var(--felt-dark); line-height: 1.7; }
-      .contact-block a { color: var(--violet-deep); }
-      .modal-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
-      .modal-close {
-        background: var(--violet-deep);
-        color: var(--paper);
-        border: none;
-        padding: 10px 24px;
-        border-radius: 6px;
-        font-family: var(--body);
-        font-size: 14px;
-        font-weight: 800;
-        cursor: pointer;
-      }
-      .modal-close:hover { background: #5a3fb8; }
-      .modal-skip { font-size: 14px; }
-      .modal-links { margin: 4px 0 12px; }
-
-      @media (prefers-reduced-motion: reduce) {
-        #zone-modal, #modal-overlay, #onboarding-hint, .skip-link { transition: none; }
-      }
-
-      noscript .nojs { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
-      noscript .nojs a { color: var(--cyan); }
-    </style>
-  </head>
-  <body>
-    <header id="garden-header">
-      <a href="/static.html" class="skip-link">Skip the garden → plain-text version</a>
-      <h1 class="sr-only">David Hynes — AI Enablement &amp; Responsible AI</h1>
-    </header>
-    <main id="garden-main">
-      <div id="game-container" role="application" aria-label="Interactive garden. Use the arrow keys to walk the bee to a set piece and press E to read. A plain-text version is linked in the footer."></div>
-      <div id="vignette" aria-hidden="true"></div>
-    </main>
-    <footer id="garden-footer"></footer>
-    <noscript>
-      <div class="nojs">
-        <p>The garden needs JavaScript. <a href="/static.html">Read the plain-text version instead →</a></p>
+  <!-- intro -->
+  <div class="veil" id="intro">
+    <div class="card">
+      <p class="wordmark">the garden</p>
+      <h1>You are a bee. This is my resume.</h1>
+      <p>Seven things worth knowing about me, one per flower. The garden is asleep until you visit them, and it gets better the more you find.</p>
+      <div class="keys" id="intro-keys"></div>
+      <div class="row">
+        <button class="btn primary" id="start-fly" type="button">Fly it myself</button>
+        <button class="btn" id="start-tour" type="button">Take me on a tour</button>
+        <button class="btn ghost" id="start-text" type="button">Read as text</button>
       </div>
-    </noscript>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+      <p class="small">Three minutes on a phone? Take the tour, or read the text version. Both have everything.</p>
+    </div>
+  </div>
+
+  <!-- loader -->
+  <div class="veil" id="loader">
+    <div class="card" style="border:none;background:transparent;box-shadow:none">
+      <p class="wordmark">the garden</p>
+      <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
+    </div>
+  </div>
+
+  <!-- payoff -->
+  <div class="veil hide" id="finale">
+    <div class="card">
+      <p class="wordmark">full bloom</p>
+      <h1>You found all seven.</h1>
+      <p>The garden is awake. There is one more flower by the hive that was not there before — it is the one with my phone number on it.</p>
+      <div class="row">
+        <button class="btn primary" id="finale-go" type="button">Show me</button>
+        <a class="btn" href="/cv.pdf" download id="finale-cv">Download my CV</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================================================== the text version -->
+<main id="text-resume">
+  <div class="tr-top">
+    <button class="btn" id="world-btn" type="button">← Back to the garden</button>
+    <div class="spacer"></div>
+    <a class="btn" href="/cv.pdf" download>Download CV</a>
+  </div>
+
+  <header class="tr-head">
+    <p class="wordmark">the garden</p>
+    <h1>David Hynes</h1>
+    <p class="tr-role">AI enablement, automation, and the training that makes it stick.</p>
+    <ul class="tr-contact">
+      <li><a href="mailto:d.hynes.mnk@gmail.com">d.hynes.mnk@gmail.com</a></li>
+      <li><a href="tel:+61411039718">0411 039 718</a></li>
+      <li>Melbourne, VIC</li>
+      <li>@dave.likeswine</li>
+    </ul>
+  </header>
+
+  <section id="tr-hive" style="--sec:#ffb03a">
+    <h2>Who I am</h2>
+    <p class="lead">I ran wine bars and a bottleshop before I ran anything technical, which is why I have no patience for AI advice that ignores payroll.</p>
+    <p>I help Australian small businesses pick the two or three AI things actually worth doing, then train their staff until nobody needs me anymore.</p>
+    <p>I wrote <em>The AI Playbook for Small Business in Australia</em> because somebody had to write the boring, useful version.</p>
+    <dl>
+      <dt>Based</dt><dd>Melbourne, VIC</dd>
+      <dt>Doing</dt><dd>AI enablement, automation, and the training that makes it stick</dd>
+      <dt>Before that</dt><dd>15 years in hospitality and retail</dd>
+    </dl>
+  </section>
+
+  <section id="tr-work" style="--sec:#ff2d95">
+    <h2>What I do</h2>
+    <p class="lead">I find the thing that is quietly costing a business six hours a week, and I make it stop.</p>
+    <p>Usually that is a spreadsheet somebody rebuilds every Monday, or a question staff have to interrupt a manager to answer. Rarely is it the thing the owner first asks me about.</p>
+    <p>Clients are mostly venues, retailers and small operators between five and fifty people, with no tech team and no appetite for a platform migration.</p>
+    <ul>
+      <li>Adoption audits: what is slow, what AI actually fixes, what it does not</li>
+      <li>Custom automations — inventory alerts, comms bots, reporting that sends itself</li>
+      <li>Staff training and SOPs written so the tool survives my last invoice</li>
+      <li>Governance: what the model sees, who signs off, what never leaves the building</li>
+    </ul>
+  </section>
+
+  <section id="tr-projects" style="--sec:#ff7a1a">
+    <h2>Selected projects</h2>
+    <p class="lead">Sovereign Local Nodes is the one I care about most. Private AI on hardware you own, with a written constitution the owner sets.</p>
+    <p>Most intelligence is rented. This is not. On-site nodes, domain isolation, tool permissions, and pricing you can read in one sitting. Currently taking pilots.</p>
+    <ul>
+      <li><a href="https://bee-free.netlify.app" rel="noopener">Bee Free Tools</a> — seven free AI diagnostics for Australian small business. Astro, Netlify.</li>
+      <li><a href="https://harcourtvalley.netlify.app" rel="noopener">Harcourt Valley Vineyards</a> — the digital front door for Bendigo's most-awarded family winery. 500+ medals.</li>
+      <li><a href="https://wherewebathe.com" rel="noopener">Where We Bathe</a> — an ad-free directory of Australian saunas, hot pools and cold plunges. No sponsored rankings.</li>
+      <li><strong>Shop Brain</strong> — retrieval system that lets bottleshop staff answer product questions without finding a manager.</li>
+      <li><strong>Cellar Content Engine</strong> — turns vintage data into social copy for winemakers. Vite, React, Supabase.</li>
+    </ul>
+  </section>
+
+  <section id="tr-method" style="--sec:#b6ff3d">
+    <h2>How I work</h2>
+    <p class="lead">I build in gates, and the acceptance criteria get written before the work does. That way "done" is not a matter of opinion.</p>
+    <p>Anything a customer will see gets a human check before it ships. Anything a staff member will use gets documented in the words they already use.</p>
+    <p>I will also tell you when AI is the wrong answer, which happens more often than the market would like.</p>
+    <ul>
+      <li>Criteria written first, demo at the end of every gate</li>
+      <li>Staged testing and output review checklists</li>
+      <li>Human-in-the-loop on anything customer-facing</li>
+      <li>Documentation as a deliverable, not a favour</li>
+    </ul>
+  </section>
+
+  <section id="tr-toolkit" style="--sec:#35f0ff">
+    <h2>Toolkit</h2>
+    <p class="lead">Frontier models and agent harnesses for the building. Boring, well-understood web tooling for the shipping.</p>
+    <p>I keep a local model on hand for anything a client would not want leaving the premises.</p>
+    <dl>
+      <dt>AI</dt><dd>Frontier models, agent skills and harnesses, prompt and workflow design, retrieval-based knowledge systems, local open-weight models</dd>
+      <dt>Build</dt><dd>Astro, React, Three.js, Supabase, Netlify, Stripe, Python, FastAPI, SQLite</dd>
+      <dt>Automation</dt><dd>Zapier, Airtable, Notion, and a lot of small scripts nobody has to think about</dd>
+      <dt>Operations</dt><dd>Margin tracking, rostering, logistics, forecasting, SOPs, team training</dd>
+    </dl>
+  </section>
+
+  <section id="tr-background" style="--sec:#8b5cf6">
+    <h2>Background</h2>
+    <p class="lead">I founded a B2B wine marketplace and scaled it to fifty-odd producers. That taught me more about systems than any course would have.</p>
+    <p>Everything technical I do now started as a stocktake at 1am, or a roster that fell apart on a Friday.</p>
+    <div class="tr-job"><time>2018 — now</time><b>AI &amp; Technology Adoption Consultant</b><i>Chicken &amp; Potatoes Consulting</i></div>
+    <div class="tr-job"><time>2025</time><b>Founder's Assistant / Chief of Staff</b><i>VAIDA.ai</i></div>
+    <div class="tr-job"><time>2024 — 2025</time><b>Venue Manager</b><i>Windsor Wine Room</i></div>
+    <div class="tr-job"><time>2020 — 2024</time><b>Founder &amp; Director</b><i>Sauced.shop</i></div>
+    <div class="tr-job"><time>Earlier</time><b>Bottleshop manager, trainer, server, owner</b><i>Mr West · Cookie · Embla · Longrain · Provenance Food &amp; Wine Co</i></div>
+  </section>
+
+  <section id="tr-writing" style="--sec:#35f0ff">
+    <h2>Writing</h2>
+    <p class="lead"><em>The AI Playbook for Small Business in Australia</em> is a thirty-day method: pick one project, name who owns it, choose tools that will not leak your data, train people properly.</p>
+    <p>No chapter tells you AI will change everything. Several tell you what to do when it does not work.</p>
+    <p>The rest of my writing is field notes from actual engagements — what got adopted, what quietly got abandoned, and why.</p>
+    <ul>
+      <li>The AI Playbook for Small Business in Australia — 30-day methodology, templates, governance</li>
+      <li>Field notes on adoption: the tools staff keep using after month three</li>
+      <li>Why most AI pilots die at the handover, and the two habits that stop it</li>
+    </ul>
+  </section>
+
+  <section id="tr-hire" style="--sec:#ff6ec7">
+    <h2>Say hello</h2>
+    <p class="lead">Available for consulting, enablement programmes, and Sovereign Local Nodes pilots. I am easy to reach and quick to reply.</p>
+    <div class="tr-cta">
+      <a href="mailto:d.hynes.mnk@gmail.com">Email me</a>
+      <a class="alt2" href="tel:+61411039718">0411 039 718</a>
+      <a class="alt2" href="/cv.pdf" download>Download CV</a>
+    </div>
+  </section>
+
+  <footer class="tr-foot">
+    <p>Built by hand. Three.js, no build step, no tracking. The garden version has the same words in it.</p>
+  </footer>
+</main>
+
+<noscript>
+  <style>#world{display:none}#text-resume{display:block}.tr-top{display:none}</style>
+</noscript>
+
+<script type="module" src="js/main.js"></script>
+</body>
 </html>
